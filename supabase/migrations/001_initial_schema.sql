@@ -1,33 +1,40 @@
 -- Mahalaxmi Expiry Manager: initial schema
--- Apply in Supabase SQL Editor after reviewing table names and access policies.
+-- Review and apply in Supabase SQL Editor.
 -- This migration intentionally does not create open/public policies.
 
 create extension if not exists pgcrypto;
 
+-- Canonical product identity: one row per internal SKU.
 create table if not exists public.product_master (
-    id uuid primary key default gen_random_uuid(),
-    sku_code text not null,
+    sku_code text primary key,
     sku_name text not null,
-    ean text,
     category text,
     is_active boolean not null default true,
     updated_at timestamptz not null default now()
 );
 
-create index if not exists product_master_sku_code_idx
-    on public.product_master (sku_code);
-create index if not exists product_master_ean_idx
-    on public.product_master (ean);
+-- Any code the manager may scan can resolve to a canonical SKU.
+-- This includes the internal SKU code itself and one or more EAN/barcodes.
+create table if not exists public.product_barcodes (
+    barcode text primary key,
+    sku_code text not null references public.product_master(sku_code) on update cascade on delete restrict,
+    code_type text not null check (code_type in ('SKU', 'EAN', 'OTHER')),
+    source_value text,
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists product_barcodes_sku_code_idx
+    on public.product_barcodes (sku_code);
 create index if not exists product_master_active_idx
     on public.product_master (is_active);
 
--- A product can have more than one barcode, and the master may contain duplicate
--- SKU rows from source imports until the master import rules are finalized.
--- Therefore we deliberately do not enforce uniqueness on EAN/SKU in this first schema.
+-- Store codes as text so leading zeros are preserved. Do not put service-role
+-- credentials in the Android app. Product master import must flag ambiguous
+-- barcode -> SKU mappings instead of silently picking one.
 
 create table if not exists public.expiry_entries (
     id uuid primary key default gen_random_uuid(),
-    client_record_id uuid not null,
+    client_record_id uuid not null unique,
     store_name text not null,
     sku_code text not null,
     sku_name text not null,
@@ -43,7 +50,6 @@ create table if not exists public.expiry_entries (
     deleted_at timestamptz,
     delete_reason text,
     exported_at timestamptz,
-    constraint expiry_entries_client_record_id_key unique (client_record_id),
     constraint expiry_entries_session_start_3pm_ist check (
         (session_start at time zone 'Asia/Kolkata')::time = time '15:00:00'
     )
@@ -58,11 +64,9 @@ create index if not exists expiry_entries_deleted_idx
 create index if not exists expiry_entries_created_at_idx
     on public.expiry_entries (created_at);
 
--- Enable RLS now. Policies / secure RPC or Edge Function are deliberately a
--- separate deployment step: the app must not use a service-role key, and
--- unrestricted anon insert/update policies are not safe for 17 store clients.
 alter table public.product_master enable row level security;
+alter table public.product_barcodes enable row level security;
 alter table public.expiry_entries enable row level security;
 
--- No client policies are created in this migration. The app is not production-ready
--- until an authenticated/controlled write path and appropriate read policies exist.
+-- No client policies are created here. Add a controlled read/write path before
+-- production use. Do not use unrestricted anonymous insert/update policies.
