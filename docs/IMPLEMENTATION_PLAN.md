@@ -1,51 +1,42 @@
 # Implementation plan
 
-## Phase 1 — Data contract and UX
-- [x] Define 3 PM IST session rule
-- [x] Define offline-first / local history requirements
-- [x] Define soft-delete field and central record contract
-- [x] Confirm master code rule: 5/6 digit values are internal SKU codes; other barcode values are EAN/barcode candidates
-- [x] Confirm a SKU may map to multiple EANs and a scan can use either SKU or EAN
-- [ ] Validate the full master and flag ambiguous mappings before import
+## Data model
+- [x] Exactly two Supabase tables: `product_master` and `expiry_entries`
+- [x] No category field; source master has only `SkuCode/EAN` and `SkuLongName`
+- [x] Scan lookup supports internal SKU codes and EAN/barcodes
+- [x] Preserve codes as text to retain leading zeros
+- [ ] Validate full source import and flag ambiguous code mappings
 
-## Master import and lookup rules
-- Source columns: `SkuCode/EAN`, `SkuLongName`.
-- Treat all codes as text to preserve leading zeros.
-- Build one canonical `product_master` row per internal SKU and a separate `product_barcodes` mapping table.
-- Every internal SKU code must also be searchable as a scan code.
-- Map every known EAN/barcode alias to the canonical SKU.
-- Exact duplicate mappings can be deduplicated; different EANs for the same SKU must be preserved.
-- If a barcode maps to multiple SKUs, mark it as ambiguous and exclude it from automatic lookup until reviewed.
-- Category remains blank unless provided by a trusted source.
-- Because the source combines SKU/EAN in one column, validate that each EAN row can be linked to its SKU from the file's repeated product records. Do not infer a relationship from fuzzy name similarity.
+## Master import rules
+- Read both source columns as text.
+- Internal SKU codes are 5 or 6 digits (examples: `00001`, `100002`).
+- Preserve all distinct EAN/barcode values; multiple EANs may map to one SKU.
+- Deduplicate only exact repeated mappings.
+- Do not guess SKU-to-EAN relationships if the two-column source does not establish them unambiguously.
+- Do not create or infer category.
 
-## Phase 2 — Android baseline
-- [ ] Create Kotlin Android project and Gradle wrapper
-- [ ] Main expiry capture screen (red Mahalaxmi header)
+## Android
+- [ ] Kotlin project and Gradle wrapper
 - [ ] Store selection saved locally
-- [ ] Camera barcode scanner
-- [ ] Lookup exact scanned value against `product_barcodes.barcode`; return canonical SKU details
-- [ ] Supabase product lookup with local cache
-- [ ] Quantity and calendar expiry date inputs
-- [ ] Recent entries / current-session history
-- [ ] Soft-delete action
-- [ ] Room persistence and retryable sync queue
+- [ ] Camera barcode scan + manual code entry
+- [ ] Exact lookup against `product_master.scan_code`
+- [ ] Auto-fill SKU code, name, EAN
+- [ ] Quantity + calendar expiry picker
+- [ ] Current 3 PM IST session history
+- [ ] Soft delete via `is_deleted = true`
+- [ ] Room offline persistence and retryable sync
 
-## Phase 3 — Supabase and admin workflow
-- [x] Initial product and barcode-alias schema
-- [ ] Controlled Supabase write path (RPC or Edge Function)
-- [ ] Master importer with validation report
-- [ ] Secure product master upload workflow
-- [ ] Export with session date range, including optional deleted rows
-- [ ] Safe archive/export workflow before office-side table cleanup
+## Supabase / office
+- [x] Initial two-table schema
+- [ ] Controlled secure read/write path (no service-role key in APK)
+- [ ] Master CSV/XLSX importer with validation report
+- [ ] Export by store/session including optional deleted rows
+- [ ] Safe export/archive before server-side clearing
 
-## Non-negotiable behaviors
-1. Session starts at 15:00 Asia/Kolkata, not at app launch.
-2. At 14:59:59 entries belong to yesterday's session; at 15:00:00 they belong to the current day's session.
-3. Main history is filtered to the current session. Old local records may be purged only after confirmed sync, or retained in a separate local archive as an implementation detail.
-4. If an entry is unsynced, local cleanup must not remove it.
-5. A manager's soft-delete must update `is_deleted = true` on the central row once synced, and must not issue SQL DELETE.
-6. Server table exports/clears must not control local history/session calculations.
-7. Use `client_record_id` as an idempotency key so offline retry cannot create duplicate central records.
-8. No Supabase service-role key in Android.
-9. Store selection without authentication is not a security boundary; do not give the public client unrestricted access to all stores' records.
+## Non-negotiable session/sync rules
+1. At 14:59:59 entries belong to the prior day's 3 PM session; at 15:00:00 they belong to the new session.
+2. App history is filtered by calculated session, not by app launch or server table contents.
+3. Never remove unsynced local records.
+4. Manager delete sets `is_deleted=true`; never issue SQL DELETE.
+5. Use `client_record_id` as an idempotency key.
+6. Clearing/exporting server rows must not reset local app state.
