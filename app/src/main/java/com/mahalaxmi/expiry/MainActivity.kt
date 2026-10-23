@@ -3,8 +3,6 @@ package com.mahalaxmi.expiry
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,7 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.google.android.gms.mlkit.codescanner.GmsBarcodeScanning
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -33,13 +31,6 @@ private val stores = listOf("Dharmaram", "Gharshakurthy", "Choppadandi", "Vidya 
 data class ExpiryItem(val id: String = UUID.randomUUID().toString(), val store: String, val sku: String, val name: String, val ean: String, val qty: Int, val expiry: String, val session: String)
 
 class MainActivity : ComponentActivity() {
-    private val scanLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        val raw = result.data?.let { com.google.android.gms.common.api.CommonStatusCodes.SUCCESS }
-        if (raw != null && result.resultCode == RESULT_OK) {
-            val value = result.data?.getStringExtra("com.google.mlkit.vision.codescanner.extra.CODE")
-            if (!value.isNullOrBlank()) scannedValue = value
-        }
-    }
     private var scannedValue by mutableStateOf("")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
