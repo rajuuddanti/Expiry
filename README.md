@@ -1,54 +1,35 @@
 # Mahalaxmi Expiry Manager
 
-Android app for store-wise expiry-date capture across Mahalaxmi Mahamart stores.
+Android expiry-date capture app for Mahalaxmi Mahamart stores.
 
-## Core workflow
+## Exactly two Supabase tables
 
-- Manager selects a store name; no device registration is required.
-- Scan a barcode or manually enter a code.
-- Resolve the input against both the internal SKU code and EAN/barcode aliases. A manager does not need to know which type they scanned.
-- Populate SKU code, SKU name, EAN, and category where available.
+1. `product_master` — imported from the provided two-column master (`SkuCode/EAN`, `SkuLongName`). No category field is needed.
+2. `expiry_entries` — records entered by store managers.
+
+## Master lookup behavior
+
+Managers can scan either the internal SKU code or an EAN/barcode. The master import preserves every code as text (including leading zeros) and maps each scannable code to the canonical SKU and name. A SKU may have multiple EANs. Exact duplicate rows can be deduplicated, but distinct EANs must be retained. If the two-column source does not unambiguously establish which EAN belongs to which SKU, the importer must flag it instead of guessing.
+
+## Manager workflow
+
+- Select a store name; no device registration.
+- Scan barcode or enter code.
+- Auto-fill SKU code, SKU name and EAN where known.
 - Enter quantity and expiry date using a calendar picker.
-- Save locally first; sync to Supabase when a connection is available.
-- Managers can review and soft-delete mistakes. Deleting sets `is_deleted = true`; it never physically deletes a row.
-- The on-device visible history is scoped to a daily session from 3:00 PM IST through, but not including, the next day's 3:00 PM.
-- Office-side records remain independent of local session history. Server clearing/export must not clear the device's local data or reset its session.
+- Save locally first, then sync to Supabase when online.
+- Managers can correct mistakes with a soft delete (`is_deleted = true`); no physical delete.
+- Visible history follows a 3 PM to next-day 3 PM session in Asia/Kolkata.
+- Server exports/clearing do not reset local session logic or delete local unsynced records.
 
-## Product master import rules
+## Proposed stack
 
-The provided master has two columns: `SkuCode/EAN` and `SkuLongName`. The combined code column can contain either an internal SKU code or an EAN/barcode. Internal SKU codes are 5 or 6 digits (examples: `00001`, `100002`); other barcode-shaped values are treated as EAN/barcode candidates.
+Kotlin Android, CameraX + ML Kit barcode scanning, Room local storage/sync queue, Supabase Postgres.
 
-The import process must:
-1. Read all codes as text, never numeric, to preserve leading zeros.
-2. Identify 5- or 6-digit internal SKU codes without stripping leading zeros.
-3. Associate all other codes in the source column with their product name as barcode/EAN candidates.
-4. Build a barcode alias mapping so scanning either the SKU code or any EAN associated with that SKU resolves to the same product.
-5. Deduplicate only exact duplicate code-to-product mappings. Never discard a distinct EAN just because the product name or SKU repeats.
-6. Flag ambiguous mappings (one scanned code resolving to multiple different SKUs) for review rather than choosing arbitrarily.
-7. Leave category blank until a trusted category source is provided; do not invent it.
+## Security
 
-If the master only provides a barcode row and product name but no explicit SKU-to-EAN link on that row, the importer must infer links only when the source data supports that relationship. It must not guess based solely on similar names if that could map one SKU to the wrong product.
+Do not ship a Supabase service-role key in the Android app. Configure a controlled read/write path and Row Level Security before production use. Store selection alone is not authentication.
 
-## Daily session rule
+## Status
 
-Use Asia/Kolkata local time. For a timestamp before 15:00, its session starts at 15:00 on the previous calendar day. At or after 15:00, its session starts at 15:00 on the current day. The session is calculated from the clock, not app-launch time.
-
-## Initial data model
-
-See `supabase/migrations/001_initial_schema.sql`.
-
-## Security note
-
-Do not ship a Supabase service-role key in the Android app. The initial schema is a data-model starting point; configure Row Level Security and a safe write path before production use. Store-name selection alone is not authentication and cannot prove a manager belongs to a particular store.
-
-## Proposed app stack
-
-- Kotlin / Android
-- CameraX with ML Kit Barcode Scanning
-- Room for offline-first local data and pending-sync queue
-- Supabase Postgres for product master and central expiry records
-- Material components with Mahalaxmi's red header / light background UI inspired by the supplied Stock Audit screenshots
-
-## Build status
-
-This repository currently contains requirements and initial schema only; it is not yet a buildable Android application.
+Requirements and initial SQL are present; this repository is not yet a buildable Android app.
