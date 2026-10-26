@@ -4,37 +4,37 @@ Last updated: 2026-10-26 (Asia/Kolkata)
 
 ## Current work branch
 
-`feature/room-offline-storage`
+`recovery/restore-ui-supabase`
+
+This is a separate recovery branch. `main`, `feature/room-offline-storage`, and the recovery baseline are not overwritten.
 
 ## Implemented in this branch
 
-- Added Room entities for the local product lookup and expiry-entry records.
-- Added a Room DAO for product lookup, product upserts, observing history, pending-entry retrieval, and soft deletion.
-- Added a Room database singleton.
-- Updated the Scan/History UI to save expiry entries into Room instead of keeping them only in Compose memory.
-- History now reads from Room, so saved entries are intended to remain after app restarts.
-- Product scan/manual code entry now attempts to resolve a locally cached product master row and fill the product name.
+- Existing Scan, History, Settings UI and local Room storage are retained.
+- Added an HTTPS Supabase REST/Auth client using the publishable/anon key (not service-role credentials).
+- Added anonymous Auth session creation and refresh; anonymous sign-in must be enabled in Supabase Auth.
+- Added initial product-master download with 1,000-row paging and transactional replacement of only the local product master.
+- Added timestamp-based product-master delta refresh using `updated_at`.
+- Added pending expiry-entry upload using stable local UUIDs and conflict-safe upsert.
+- Soft-delete changes now re-enter the pending queue for synchronization.
+- Added Settings → Sync Now control and sync status/error feedback.
+- Added a SQL migration for RLS policies and owner-scoped expiry-entry access.
+- Added setup and verification instructions in `docs/SUPABASE_ANDROID_SETUP.md`.
 
-## Not implemented yet
+## Still required before this is considered working
 
-- No Supabase connection or credentials were added.
-- No initial product-master download is implemented.
-- No revision check or delta-sync API is implemented.
-- No expiry-entry upload/retry worker is implemented.
-- The current repository state has not been built or run in Android Studio by the assistant. Treat this as code added but not yet build-verified.
+- Apply migration `supabase/migrations/002_secure_android_sync.sql` in the actual Supabase project.
+- Enable Anonymous Sign-Ins in Supabase Auth.
+- Add the project's URL and publishable/anon key to the ignored root `local.properties`.
+- Build and run the app in Android Studio; this branch has not yet been build-verified by the assistant.
+- Test first-time product sync, delta sync, offline entry capture, upload retry, app restart, and soft-delete sync.
+- Add automatic background retry; current retry is manual via Settings → Sync Now.
+- Design a separately authenticated server-side path for shared all-store reporting. The Android app must never contain a service-role key.
 
-## Important behavior
+## Data safety notes
 
-- Room uses TEXT codes so leading zeroes can be preserved.
-- Expiry entries have a `syncStatus` field defaulting to `PENDING`.
-- Deleting from History sets `deletedAt`; it does not physically delete the row.
-- Product-master refresh must later be implemented transactionally and must never clear unsynced expiry entries.
-
-## Next steps
-
-1. Fetch and check out `feature/room-offline-storage` in Android Studio.
-2. Sync Gradle and run a debug build.
-3. Fix any build/runtime issues before moving on.
-4. Implement product-master initial full sync into Room.
-5. Implement the server revision/change-log mechanism only after reviewing the actual Supabase schema and RLS with the user.
-6. Implement revision-based delta sync and expiry-entry upload with retry.
+- SKU and scan codes remain TEXT so leading zeroes are preserved.
+- Product-master replacement is transactional and rejects an empty first-sync response, protecting the existing local cache.
+- Expiry entries remain in Room; a product refresh never clears them.
+- Expiry records are owner-scoped to the device's Supabase anonymous Auth user under the new RLS migration. This does not yet give an admin shared reporting access.
+- Do not treat code committed to GitHub as a successful build or verified live Supabase integration until the listed setup and tests pass.
