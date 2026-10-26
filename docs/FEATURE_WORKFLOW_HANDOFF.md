@@ -7,7 +7,7 @@ Branch: `feature/new-expiry-upload-table`
 2. Display category rows scheduled for that date from the Excel-derived schedule.
 3. Staff select one assigned category.
 4. The category screen offers a SKU Lookup module and the main expiry-entry flow.
-5. SKU Lookup searches by name and SKU code, and by EAN after the actual EAN field/mapping is confirmed. Results show `Catg` and clearly identify whether it matches today's assigned categories.
+5. SKU Lookup searches by name and SKU code, and by EAN by searching the same `SkuCode` field (SKU and EAN codes are stacked in rows; do not add a separate EAN column). Results show `Catg` and clearly identify whether it matches today's assigned categories.
 6. Main entry validates every scanned/manual EAN against MASTER. Correct category: verified and name auto-filled. Different category: block saving. No match: keep name blank and permit only as unverified, retaining EAN, quantity, and expiry date. Blank/ambiguous category: do not treat as verified.
 7. Expiry calendar independently applies the allowed cutoff for the product's category.
 8. Save locally and sync to Supabase according to the existing sync contract.
