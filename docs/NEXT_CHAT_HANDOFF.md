@@ -16,7 +16,9 @@ Continue the Mahalaxmi Expiry Manager project from the GitHub repository `rajuud
 
 ### Current exact status
 
-The user reports they have fixed the product master data in Supabase. Do not assume the current live schema/data has been inspected; the assistant is NOT connected to the user's Supabase project. Give SQL to run and ask for results when needed.
+The user imported this repository into Android Studio and said they had not created anything. Inspection of GitHub showed the repository already contains a minimal Android Compose project and a MainActivity screen, but the original expiry entries were only held in Compose memory. The assistant has started implementation on branch `feature/room-offline-storage`.
+
+See `docs/IMPLEMENTATION_STATUS.md` for what has been added and what remains. The Room changes have NOT been build-verified. The assistant is NOT connected to the user's Supabase project and must not claim to have queried or changed it. Ask the user to fetch/check out the feature branch, sync Gradle, and run a build; use any build output to correct issues before proceeding.
 
 ### New confirmed decision: daily incremental master sync
 
@@ -65,13 +67,15 @@ Android/Kotlin expiry capture app for Mahalaxmi Mahamart:
 
 ### Next implementation steps
 
-1. Inspect the actual GitHub source tree; the repository previously documented requirements/SQL but was not yet confirmed to be a buildable Android project.
-2. Inspect current live schemas and RLS from user-provided SQL results.
-3. Design the staging validation/publish transaction and revision/change-log schema.
-4. Test add/change/remove and failed validation scenarios before publishing.
-5. Implement Room initial full import and revision-based delta sync.
-6. Test unchanged master, small delta, removed codes, offline launch, interrupted sync, and retry.
-7. Update Markdown documentation and commit it when the user asks to push .md files.
+1. Fetch/check out `feature/room-offline-storage` in Android Studio, sync Gradle, and run a debug build.
+2. Fix build/runtime issues using actual error output; do not claim build success before verified.
+3. Implement product-master initial full import into Room and product lookup.
+4. Inspect current live schemas and RLS from user-provided SQL results.
+5. Design the staging validation/publish transaction and revision/change-log schema.
+6. Test add/change/remove and failed validation scenarios before publishing.
+7. Implement revision-based delta sync and retryable expiry-entry upload.
+8. Test unchanged master, small delta, removed codes, offline launch, interrupted sync, and retry.
+9. Keep implementation status/handoff Markdown current on the working branch.
 
 ### Accuracy rules
 
