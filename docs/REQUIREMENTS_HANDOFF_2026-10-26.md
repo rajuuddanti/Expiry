@@ -23,7 +23,7 @@ Working branch: `feature/new-expiry-upload-table`
 For the categories assigned to the current business day, provide a separate SKU Lookup module/tab. Search full master by:
 - Product name (`SkuLongName`)
 - SKU code (`SkuCode`)
-- EAN/barcode, once the actual EAN column/source is confirmed.
+- EAN/barcode using the same `SkuCode` field; SKU and EAN codes are stacked as rows, not separate columns. SKU-code rows appear first, followed by EAN rows for those products. Preserve source order and use the agreed FCFS association.
 
 Results should display product name, SKU code, EAN when available, and actual category from `Catg`. Clearly mark whether a result belongs to today's assigned category.
 
