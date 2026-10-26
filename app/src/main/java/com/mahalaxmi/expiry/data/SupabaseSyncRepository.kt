@@ -118,6 +118,10 @@ class SupabaseSyncRepository(
         }
 
         if (lastSync.isNullOrBlank()) {
+            // Never clear a previously cached master when the server returns no rows.
+            check(allRows.isNotEmpty()) {
+                "Supabase returned no product rows. Check product_master data and SELECT RLS policy; local cache was preserved."
+            }
             // Replace only the product master; local expiry records are untouched.
             dao.replaceProductMaster(allRows)
         } else if (allRows.isNotEmpty()) {
