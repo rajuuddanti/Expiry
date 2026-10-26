@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
   const ip = observedClientIp(req);
 
   if (!claimedStore || claimedStore.length > 120 || !id || !skuName || !skuCode || !ean ||
-      !Number.isInteger(qty) || qty <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(expiryDate)) {
+      !Number.isInteger(qty) || qty <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(expiryDate)) {
     return json({ error: "Missing or invalid upload fields" }, 400);
   }
 
