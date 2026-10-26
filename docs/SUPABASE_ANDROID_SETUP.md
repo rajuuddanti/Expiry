@@ -8,7 +8,7 @@ Branch: `recovery/restore-ui-supabase`
 - Anonymous Supabase Auth sessions, persisted and refreshed on the device.
 - Product-master initial download and timestamp-based incremental refresh into Room.
 - Upload of pending expiry records, including soft-delete state.
-- A manual **Settings → Sync Now** control.
+- A manual **Settings → Sync Now** control plus WorkManager sync when connected (startup attempt and periodic retry, at a minimum 15-minute interval).
 - A transactional product-master replacement that does not touch locally captured expiry entries.
 - RLS policies that keep expiry entries scoped to the device's Supabase Auth user.
 
