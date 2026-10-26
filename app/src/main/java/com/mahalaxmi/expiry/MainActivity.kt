@@ -18,11 +18,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.android.gms.mlkit.codescanner.GmsBarcodeScanning
+import com.mahalaxmi.expiry.data.ExpiryDatabase
+import com.mahalaxmi.expiry.data.ExpiryEntryEntity
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.UUID
 
 private val MahalaxmiRed = Color(0xFFB71C1C)
 private val IndiaZone = ZoneId.of("Asia/Kolkata")
@@ -35,23 +37,16 @@ private val stores = listOf(
 
 private enum class AppScreen { Scan, History, Settings }
 
-data class ExpiryItem(
-    val id: String = UUID.randomUUID().toString(),
-    val store: String,
-    val sku: String,
-    val name: String,
-    val ean: String,
-    val qty: Int,
-    val expiry: String,
-    val session: String
-)
-
 class MainActivity : ComponentActivity() {
     private var scannedValue by mutableStateOf("")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val prefs = getSharedPreferences("expiry_manager", MODE_PRIVATE)
+        val database = ExpiryDatabase.getInstance(applicationContext)
+        val dao = database.expiryDao()
         setContent {
+            val scope = rememberCoroutineScope()
+            val entries by dao.observeEntries().collectAsState(initial = emptyList())
             var store by remember { mutableStateOf(prefs.getString("store", "") ?: "") }
             var screen by remember { mutableStateOf(AppScreen.Scan) }
             var code by remember { mutableStateOf("") }
@@ -59,7 +54,6 @@ class MainActivity : ComponentActivity() {
             var ean by remember { mutableStateOf("") }
             var qty by remember { mutableStateOf("1") }
             var expiry by remember { mutableStateOf(LocalDate.now(IndiaZone).format(DateTimeFormatter.ISO_DATE)) }
-            var entries by remember { mutableStateOf(listOf<ExpiryItem>()) }
             var message by remember { mutableStateOf("") }
 
             LaunchedEffect(scannedValue) {
@@ -67,6 +61,18 @@ class MainActivity : ComponentActivity() {
                     code = scannedValue
                     ean = scannedValue
                     scannedValue = ""
+                }
+            }
+
+            LaunchedEffect(code) {
+                val lookupCode = code.trim()
+                if (lookupCode.isNotBlank()) {
+                    val product = runCatching { dao.findProductByScanCode(lookupCode) }.getOrNull()
+                        ?: runCatching { dao.findProductBySku(lookupCode) }.getOrNull()
+                    if (product != null) {
+                        name = product.skuName
+                        if (lookupCode != product.skuCode) ean = lookupCode
+                    }
                 }
             }
 
@@ -178,9 +184,23 @@ class MainActivity : ComponentActivity() {
                                                 val now = LocalDateTime.now(IndiaZone)
                                                 val sessionDate = if (now.hour < 15) now.toLocalDate().minusDays(1) else now.toLocalDate()
                                                 val session = sessionDate.atTime(15, 0).atZone(IndiaZone).toOffsetDateTime().toString()
-                                                entries = listOf(ExpiryItem(store = store, sku = code.trim(), name = name.trim(), ean = ean.trim(), qty = q, expiry = expiry, session = session)) + entries
-                                                code = ""; name = ""; ean = ""; qty = "1"
-                                                message = "Entry added to this session's history."
+                                                scope.launch {
+                                                    dao.insertEntry(
+                                                        ExpiryEntryEntity(
+                                                            id = java.util.UUID.randomUUID().toString(),
+                                                            store = store,
+                                                            skuCode = code.trim(),
+                                                            productName = name.trim(),
+                                                            scannedCode = ean.trim().ifBlank { code.trim() },
+                                                            quantity = q,
+                                                            expiryDate = expiry,
+                                                            sessionStart = session,
+                                                            createdAt = now.toOffsetDateTime().toString()
+                                                        )
+                                                    )
+                                                    code = ""; name = ""; ean = ""; qty = "1"
+                                                    message = "Entry saved offline. It will remain on this device until synced."
+                                                }
                                             }
                                         },
                                         modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -201,11 +221,11 @@ class MainActivity : ComponentActivity() {
                                             items(entries, key = { it.id }) { item ->
                                                 Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                                                     Column(Modifier.padding(12.dp)) {
-                                                        Text(item.name, fontWeight = FontWeight.Bold)
+                                                        Text(item.productName, fontWeight = FontWeight.Bold)
                                                         Text("Store: ${item.store}")
-                                                        Text("SKU: ${item.sku}    EAN: ${item.ean}")
-                                                        Text("Qty: ${item.qty}    Expiry: ${item.expiry}")
-                                                        TextButton(onClick = { entries = entries.filterNot { it.id == item.id } }) {
+                                                        Text("SKU: ${item.skuCode}    Scanned: ${item.scannedCode}")
+                                                        Text("Qty: ${item.quantity}    Expiry: ${item.expiryDate}")
+                                                        TextButton(onClick = { scope.launch { dao.softDeleteEntry(item.id, LocalDateTime.now(IndiaZone).toOffsetDateTime().toString()) } }) {
                                                             Text("Delete entry", color = MahalaxmiRed)
                                                         }
                                                     }
