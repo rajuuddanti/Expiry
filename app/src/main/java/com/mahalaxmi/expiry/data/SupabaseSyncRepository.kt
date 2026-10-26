@@ -10,7 +10,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
 
-/** Offline-first sync against the live public.MASTER and public.expiry_scan_uploads tables. */
+/** Offline-first sync against public.MASTER and the server-side expiry upload function. */
 class SupabaseSyncRepository(context: Context, private val dao: ExpiryDao) {
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences("expiry_supabase_sync", Context.MODE_PRIVATE)
@@ -106,9 +106,10 @@ class SupabaseSyncRepository(context: Context, private val dao: ExpiryDao) {
                 .put("qty", entry.quantity)
                 .put("expirydate", entry.expiryDate)
                 .put("is_deleted", entry.deletedAt != null)
-                .put("device_id", android.provider.Settings.Secure.getString(appContext.contentResolver, android.provider.Settings.Secure.ANDROID_ID))
-            requestJson("POST", "/rest/v1/expiry_scan_uploads?on_conflict=id", body, accessToken,
-                prefer = "resolution=merge-duplicates,return=minimal")
+
+            // Server-side function records the trusted edge-observed IP and flags unknown IPs.
+            // Mark local data synced only after the function confirms success.
+            requestJson("POST", "/functions/v1/expiry-upload", body, accessToken)
             dao.markEntriesSynced(listOf(entry.id))
             uploaded++
         }
