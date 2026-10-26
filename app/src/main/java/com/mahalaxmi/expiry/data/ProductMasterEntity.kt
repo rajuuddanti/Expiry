@@ -4,18 +4,14 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/**
- * Local searchable copy of the published Supabase product_master.
- * Codes stay TEXT so leading zeroes are preserved.
- */
-@Entity(
-    tableName = "product_master",
-    indices = [Index(value = ["skuCode"]), Index(value = ["skuName"])]
-)
+/** Local public.MASTER cache. SKU and EAN codes share SkuCode; duplicate rows are retained. */
+@Entity(tableName = "product_master", indices = [Index(value = ["skuCode"]), Index(value = ["skuName"]), Index(value = ["rowOrder"])])
 data class ProductMasterEntity(
-    @PrimaryKey
+    @PrimaryKey(autoGenerate = true) val rowId: Long = 0,
     val scanCode: String,
     val skuCode: String,
     val skuName: String,
+    val category: String?,
+    val rowOrder: Int,
     val isActive: Boolean = true
 )
