@@ -1,0 +1,10 @@
+-- One-time bootstrap template for registering a known store device.
+-- Run only after migration 005 has been applied and device ID/store ownership has
+-- been verified by an administrator. Replace both placeholder values.
+-- Do not expose expiry_device_registry to Android clients.
+insert into public.expiry_device_registry (device_id, registered_store, is_active)
+values ('REPLACE_WITH_VERIFIED_ANDROID_ID', 'REPLACE_WITH_EXACT_STORE_NAME', true)
+on conflict (device_id) do update
+set registered_store = excluded.registered_store,
+    is_active = true,
+    updated_at = now();
