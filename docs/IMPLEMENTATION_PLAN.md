@@ -1,51 +1,45 @@
 # Implementation plan
 
-## Data model
-- [x] Exactly two production tables: `product_master` and `expiry_entries`
-- [x] No category field/table; source master has `SkuCode/EAN` and `SkuLongName`
-- [x] One searchable `scan_code` field handles both SKU codes and EANs
-- [x] Preserve codes as text to retain leading zeros
-- [x] Normalize codes shorter than 5 digits by left-padding to 5; leave longer codes unchanged
-- [x] Duplicate product names use first matching SKU row in source order (FCFS), as requested by user
-- [ ] Verify staging import schema, row count and original row order
-- [ ] Verify the SKU/EAN section boundary (user estimates first 28–30K rows are SKU codes)
-- [ ] Preview mappings and report blanks, unmatched names and conflicting duplicate scan codes
-- [ ] Import validated mappings into `product_master`
+## Product master data and daily sync
+- [x] Two production business tables intended: product_master and expiry_entries
+- [x] No category field/table; one scan_code lookup handles SKU and EAN
+- [x] Text-only codes; pad digit-only codes shorter than 5 digits, preserve 5+ digits
+- [x] FCFS canonical SKU match for duplicate product names
+- [x] User selected daily staging -> validate -> compare -> publish (Option A)
+- [ ] Verify actual live schemas and RLS from user-run SQL results
+- [ ] Build staging validation for blanks, duplicate/conflicting scan codes and mapping errors
+- [ ] Build safe publish process that compares staging to existing master without clearing the published table first
+- [ ] Track a monotonically increasing master revision and retained changes, including removals
+- [ ] Add lightweight revision check and paginated delta retrieval for devices
+- [ ] Add full-snapshot fallback if a device's revision is too old for retained changes
+- [ ] Test add, update, removal, duplicate, and failed-validation cases
 
-## Master import rules
-- Source columns: `SkuCode/EAN`, `SkuLongName`; SKU/EAN rows are stacked vertically in the same code column.
-- SKU row: `scan_code = normalized code`, `sku_code = normalized code`, `sku_name = source name`.
-- EAN row: `scan_code = normalized EAN`; reverse lookup SKU by exact product name against SKU rows ordered by source order; first match wins.
-- Keep all codes as text. For digit-only codes under 5 characters, left-pad to 5. Do not truncate 5+ digit codes.
-- Keep distinct EAN scan codes. Exact duplicate scan codes cannot conflict with the destination primary key; report conflicting mappings before writing.
-- Do not guess or silently assign an EAN whose name has no SKU-name match; report it for review.
-- Never directly import the original two-column CSV into the three-required-column `product_master` table.
+## Android product master sync
+- [ ] Inspect actual Android source tree and build setup before implementation claims
+- [ ] First successful online launch downloads full master into Room
+- [ ] Persist locally applied master revision
+- [ ] Subsequent launches check revision only; if unchanged, fetch no master rows
+- [ ] If changed, download only changes since local revision
+- [ ] Apply each delta in a single Room transaction and advance local revision only after success
+- [ ] Offline start uses Room and retries later
+- [ ] Never clear local master before successful full/delta validation
+- [ ] Product master refresh never removes expiry history or unsynced expiry entries
+- [ ] Test interrupted download, retry, pagination, removals, offline mode, and unchanged revision
 
-## Android
-- [ ] Confirm/complete Kotlin project and Gradle wrapper
+## Expiry app requirements
 - [ ] Store selection saved locally and editable in Settings
-- [ ] Camera barcode scan + manual code entry
-- [ ] Exact lookup against `product_master.scan_code`
-- [ ] Auto-fill SKU code and product name
-- [ ] Quantity + calendar expiry picker
-- [ ] Current 3 PM IST session history
-- [ ] Soft delete via `is_deleted = true`
-- [ ] Room offline persistence and retryable sync
+- [ ] Camera barcode scanning and manual code entry
+- [ ] Exact lookup against product_master.scan_code
+- [ ] Autofill canonical SKU and product name
+- [ ] Quantity and calendar expiry picker
+- [ ] History session 3 PM IST to next day 3 PM
+- [ ] Room offline persistence and retryable expiry-entry sync
+- [ ] Soft delete manager corrections/deletions; never physically delete expiry records
 - [ ] Build and test on device before claiming readiness
 
-## Supabase / office
-- [x] Initial two-table schema checked into repository
-- [ ] Controlled secure read/write path (no service-role key in APK)
-- [ ] Validate and import full master with a report
-- [ ] Export by store/session including optional deleted rows
-- [ ] Safe export/archive before server-side clearing
-- [ ] Verify RLS policies and permissions before production use
+## Security
+- [ ] No service-role key in APK
+- [ ] Confirm safe RLS and controlled access path for master revision/delta reads and expiry writes
+- [ ] Do not assume assistant has direct access to user's Supabase project
 
-## Non-negotiable session/sync rules
-1. At 14:59:59, entries belong to the prior day's 3 PM session; at 15:00:00, they belong to the new session.
-2. App history is filtered by calculated session, not by app launch or server table contents.
-3. Never remove unsynced local records.
-4. Manager delete sets `is_deleted=true`; never issue SQL DELETE for an expiry entry.
-5. Use `client_record_id` as an idempotency key.
-6. Clearing/exporting server rows must not reset local app state.
-7. The user's Supabase project is not connected to the assistant's Supabase connector. Provide SQL and have the user run it; never claim direct access.
+See docs/PRODUCT_MASTER_DAILY_SYNC.md for the detailed sync design.
