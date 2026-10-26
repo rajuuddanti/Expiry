@@ -14,7 +14,7 @@ abstract class ExpiryDatabase : RoomDatabase() {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE TABLE IF NOT EXISTS product_master_new (rowId INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, scanCode TEXT NOT NULL, skuCode TEXT NOT NULL, skuName TEXT NOT NULL, category TEXT, rowOrder INTEGER NOT NULL, isActive INTEGER NOT NULL)")
-                db.execSQL("INSERT INTO product_master_new (scanCode, skuCode, skuName, category, rowOrder, isActive) SELECT scanCode, skuCode, skuName, NULL, ROW_NUMBER() OVER (ORDER BY rowid), isActive FROM product_master")
+                db.execSQL("INSERT INTO product_master_new (scanCode, skuCode, skuName, category, rowOrder, isActive) SELECT scanCode, skuCode, skuName, NULL, rowid, isActive FROM product_master")
                 db.execSQL("DROP TABLE product_master")
                 db.execSQL("ALTER TABLE product_master_new RENAME TO product_master")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_product_master_skuCode ON product_master(skuCode)")
