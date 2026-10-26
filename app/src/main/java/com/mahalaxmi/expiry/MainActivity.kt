@@ -21,6 +21,15 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.mahalaxmi.expiry.data.ExpiryDatabase
 import com.mahalaxmi.expiry.data.ExpiryEntryEntity
 import com.mahalaxmi.expiry.data.SupabaseSyncRepository
+import com.mahalaxmi.expiry.data.ExpirySyncWorker
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -45,6 +54,28 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences("expiry_manager", MODE_PRIVATE)
         val database = ExpiryDatabase.getInstance(applicationContext)
         val dao = database.expiryDao()
+
+        // Run a one-time sync when online, then retry periodically on connected networks.
+        val networkConstraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+        val initialSync = OneTimeWorkRequestBuilder<ExpirySyncWorker>()
+            .setConstraints(networkConstraints)
+            .build()
+        val periodicSync = PeriodicWorkRequestBuilder<ExpirySyncWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(networkConstraints)
+            .build()
+        WorkManager.getInstance(applicationContext).enqueueUniqueWork(
+            "expiry-initial-sync",
+            ExistingWorkPolicy.KEEP,
+            initialSync
+        )
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            "expiry-periodic-sync",
+            ExistingPeriodicWorkPolicy.KEEP,
+            periodicSync
+        )
+
         setContent {
             val scope = rememberCoroutineScope()
             val entries by dao.observeEntries().collectAsState(initial = emptyList())
