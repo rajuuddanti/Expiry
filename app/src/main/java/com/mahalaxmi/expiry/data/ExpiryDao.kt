@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -34,6 +35,14 @@ interface ExpiryDao {
 
     @Query("DELETE FROM product_master")
     suspend fun clearProductMaster()
+
+    /** Atomically replace the cached product master without touching expiry entries. */
+    @Transaction
+    suspend fun replaceProductMaster(products: List<ProductMasterEntity>) {
+        require(products.isNotEmpty()) { "Refusing to replace product master with an empty result." }
+        clearProductMaster()
+        products.chunked(400).forEach { upsertProducts(it) }
+    }
 
     @Query("UPDATE expiry_entries SET syncStatus = 'SYNCED' WHERE id IN (:ids)")
     suspend fun markEntriesSynced(ids: List<String>)
