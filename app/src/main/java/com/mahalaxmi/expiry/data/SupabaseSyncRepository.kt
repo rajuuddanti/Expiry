@@ -89,6 +89,7 @@ class SupabaseSyncRepository(
 
     private suspend fun downloadProductMaster(accessToken: String): Int {
         val lastSync = prefs.getString("product_master_last_sync", null)
+        val syncStartedAt = Instant.now().toString()
         val allRows = mutableListOf<ProductMasterEntity>()
         var offset = 0
         val pageSize = 1000
@@ -127,7 +128,7 @@ class SupabaseSyncRepository(
         } else if (allRows.isNotEmpty()) {
             allRows.chunked(400).forEach { dao.upsertProducts(it) }
         }
-        prefs.edit().putString("product_master_last_sync", Instant.now().toString()).apply()
+        prefs.edit().putString("product_master_last_sync", syncStartedAt).apply()
         return allRows.size
     }
 
