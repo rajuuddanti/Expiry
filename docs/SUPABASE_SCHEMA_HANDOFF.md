@@ -14,7 +14,7 @@ Observed columns:
 | `SkuLongName` | text | yes | Product display name |
 | `Catg` | text | yes | Category field added for category matching |
 
-Observed row count: 99,686. No primary key was reported by schema introspection. No EAN/barcode column was reported. Do not assume the EAN column name or fabricate a mapping. Confirm source and schema before implementing barcode lookup.
+Observed row count: 99,686. No primary key was reported by schema introspection. There is intentionally no separate EAN column: SKU codes and EAN codes are stacked as rows in `SkuCode`, with `SkuLongName` repeated for matching products and SKU rows preceding EAN rows (FCFS). Barcode lookup should search the same `SkuCode` field. Preserve source order and confirm the SKU/EAN row mapping before changing master data.
 
 ## public.expiry_scan_uploads
 Observed columns:
@@ -58,6 +58,6 @@ This live change should also be represented in a checked-in migration so a fresh
 - Run Supabase security and performance advisors after schema/RLS changes.
 
 ## Important gaps to resolve
-1. `public.MASTER` currently has no EAN/barcode field in the inspected schema; locate the real source/mapping before enabling EAN lookup.
+1. EANs share the `SkuCode` field; no separate EAN column is needed. Ensure lookup/import logic supports stacked rows and FCFS SKU association.
 2. The current schema introspection reported no primary key on `MASTER`; do not add one blindly to a large imported table without assessing duplicates and app usage.
 3. The new daily schedule data model has not yet been implemented. Decide whether to bundle the Excel schedule as an app asset or import it into a dedicated table; either way preserve dates and category labels exactly through 2027-12-31.
