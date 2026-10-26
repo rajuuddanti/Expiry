@@ -88,16 +88,14 @@ class SupabaseSyncRepository(
     }
 
     private suspend fun downloadProductMaster(accessToken: String): Int {
-        val lastSync = prefs.getString("product_master_last_sync", null)
-        val syncStartedAt = Instant.now().toString()
+        // In this project product_master_staging IS the master list.
+        // It contains the scanned SKU/EAN code in sku_code and its lookup name in sku_name.
+        // Do not expect a separate product_master table or updated_at column.
         val allRows = mutableListOf<ProductMasterEntity>()
         var offset = 0
         val pageSize = 1000
         while (true) {
-            val filter = if (lastSync.isNullOrBlank()) "" else
-                "&updated_at=gt." + URLEncoder.encode(lastSync, "UTF-8")
-            val path = "/rest/v1/product_master?select=scan_code,sku_code,sku_name,is_active,updated_at" +
-                "&order=scan_code.asc$filter"
+            val path = "/rest/v1/product_master_staging?select=sku_code,sku_name&order=sku_code.asc"
             val rows = requestArray(
                 "GET",
                 path,
@@ -107,28 +105,27 @@ class SupabaseSyncRepository(
             )
             for (i in 0 until rows.length()) {
                 val row = rows.getJSONObject(i)
-                allRows += ProductMasterEntity(
-                    scanCode = row.optString("scan_code"),
-                    skuCode = row.optString("sku_code"),
-                    skuName = row.optString("sku_name"),
-                    isActive = row.optBoolean("is_active", true)
-                )
+                val code = row.optString("sku_code").trim()
+                val name = row.optString("sku_name").trim()
+                if (code.isNotBlank() && name.isNotBlank()) {
+                    allRows += ProductMasterEntity(
+                        scanCode = code,
+                        skuCode = code,
+                        skuName = name,
+                        isActive = true
+                    )
+                }
             }
             if (rows.length() < pageSize) break
             offset += pageSize
         }
 
-        if (lastSync.isNullOrBlank()) {
-            // Never clear a previously cached master when the server returns no rows.
-            check(allRows.isNotEmpty()) {
-                "Supabase returned no product rows. Check product_master data and SELECT RLS policy; local cache was preserved."
-            }
-            // Replace only the product master; local expiry records are untouched.
-            dao.replaceProductMaster(allRows)
-        } else if (allRows.isNotEmpty()) {
-            allRows.chunked(400).forEach { dao.upsertProducts(it) }
+        check(allRows.isNotEmpty()) {
+            "Supabase returned no rows from product_master_staging. Check the master data and SELECT policy; local cache was preserved."
         }
-        prefs.edit().putString("product_master_last_sync", syncStartedAt).apply()
+        // This staging table is the authoritative master; refresh local lookup cache from it.
+        dao.replaceProductMaster(allRows)
+        prefs.edit().putString("product_master_last_sync", Instant.now().toString()).apply()
         return allRows.size
     }
 
