@@ -297,13 +297,6 @@ class MainActivity : ComponentActivity() {
                                                     Text("SKU (FCFS): ${product.skuCode}")
                                                     Text("Matched master code: ${product.scanCode}")
                                                     Text("Category: ${product.category ?: "Pending verification"}")
-                                                    TextButton(onClick = {
-                                                        code = product.skuCode
-                                                        name = product.skuName
-                                                        ean = if (product.scanCode != product.skuCode) product.scanCode else ""
-                                                        screen = AppScreen.Scan
-                                                        message = "Selected from lookup. Verify category and scan details before saving."
-                                                    }) { Text("Use in expiry entry", color = MahalaxmiRed) }
                                                 }
                                             }
                                         }
