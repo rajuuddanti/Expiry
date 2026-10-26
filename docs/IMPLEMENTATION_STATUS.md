@@ -18,6 +18,7 @@ This is a separate recovery branch. `main`, `feature/room-offline-storage`, and 
 - Added pending expiry-entry upload using stable local UUIDs and conflict-safe upsert.
 - Soft-delete changes now re-enter the pending queue for synchronization.
 - Added Settings → Sync Now control and sync status/error feedback.
+- Added WorkManager startup sync plus periodic connected-network retry (minimum 15-minute interval).
 - Added a SQL migration for RLS policies and owner-scoped expiry-entry access.
 - Added setup and verification instructions in `docs/SUPABASE_ANDROID_SETUP.md`.
 
@@ -28,7 +29,7 @@ This is a separate recovery branch. `main`, `feature/room-offline-storage`, and 
 - Add the project's URL and publishable/anon key to the ignored root `local.properties`.
 - Build and run the app in Android Studio; this branch has not yet been build-verified by the assistant.
 - Test first-time product sync, delta sync, offline entry capture, upload retry, app restart, and soft-delete sync.
-- Add automatic background retry; current retry is manual via Settings → Sync Now.
+- Verify WorkManager retry behavior on physical devices and after app restart.
 - Design a separately authenticated server-side path for shared all-store reporting. The Android app must never contain a service-role key.
 
 ## Data safety notes
