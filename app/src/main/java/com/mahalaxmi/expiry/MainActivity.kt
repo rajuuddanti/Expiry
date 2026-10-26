@@ -45,7 +45,7 @@ private val stores = listOf(
     "Gangadhara New", "Gopalrao Pet", "Vemulawada"
 )
 
-private enum class AppScreen { Scan, History, Settings }
+private enum class AppScreen { Scan, Lookup, History, Settings }
 
 class MainActivity : ComponentActivity() {
     private var scannedValue by mutableStateOf("")
@@ -90,6 +90,9 @@ class MainActivity : ComponentActivity() {
             var qty by remember { mutableStateOf("1") }
             var expiry by remember { mutableStateOf(LocalDate.now(IndiaZone).format(DateTimeFormatter.ISO_DATE)) }
             var message by remember { mutableStateOf("") }
+            var lookupQuery by remember { mutableStateOf("") }
+            var lookupResults by remember { mutableStateOf(emptyList<com.mahalaxmi.expiry.data.ProductMasterEntity>()) }
+            var lookupMessage by remember { mutableStateOf("Search by product name, SKU code, or EAN/barcode.") }
 
             LaunchedEffect(scannedValue) {
                 if (scannedValue.isNotBlank()) {
@@ -131,6 +134,12 @@ class MainActivity : ComponentActivity() {
                                 onClick = { screen = AppScreen.Scan },
                                 icon = { Text("▣", fontSize = 20.sp) },
                                 label = { Text("Scan") }
+                            )
+                            NavigationBarItem(
+                                selected = screen == AppScreen.Lookup,
+                                onClick = { screen = AppScreen.Lookup },
+                                icon = { Text("⌕", fontSize = 20.sp) },
+                                label = { Text("SKU Lookup") }
                             )
                             NavigationBarItem(
                                 selected = screen == AppScreen.History,
@@ -253,6 +262,52 @@ class MainActivity : ComponentActivity() {
                                         colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
                                     ) { Text("SAVE ENTRY", fontWeight = FontWeight.Bold) }
                                     if (message.isNotBlank()) Text(message, color = MahalaxmiRed, fontSize = 13.sp)
+                                }
+                            }
+
+                            AppScreen.Lookup -> {
+                                Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("SKU Lookup", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                    Text("Search MASTER by product name, SKU code, or EAN/barcode. SKU and EAN codes share SkuCode; duplicate rows are preserved.",
+                                        color = Color.Gray, fontSize = 12.sp)
+                                    OutlinedTextField(
+                                        value = lookupQuery,
+                                        onValueChange = { value ->
+                                            lookupQuery = value
+                                            scope.launch {
+                                                if (value.isBlank()) {
+                                                    lookupResults = emptyList()
+                                                    lookupMessage = "Search by product name, SKU code, or EAN/barcode."
+                                                } else {
+                                                    lookupResults = runCatching { dao.searchProducts(value.trim()) }.getOrDefault(emptyList())
+                                                    lookupMessage = if (lookupResults.isEmpty()) "No matching master rows. Check sync or verify this code manually." else "${lookupResults.size} result(s), in master source order."
+                                                }
+                                            }
+                                        },
+                                        label = { Text("Product name / SKU / EAN") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                    )
+                                    Text(lookupMessage, color = Color.Gray, fontSize = 12.sp)
+                                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        items(lookupResults, key = { it.rowId }) { product ->
+                                            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)) {
+                                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                                    Text(product.skuName, fontWeight = FontWeight.Bold)
+                                                    Text("SKU (FCFS): ${product.skuCode}")
+                                                    Text("Matched master code: ${product.scanCode}")
+                                                    Text("Category: ${product.category ?: "Pending verification"}")
+                                                    TextButton(onClick = {
+                                                        code = product.skuCode
+                                                        name = product.skuName
+                                                        ean = if (product.scanCode != product.skuCode) product.scanCode else ""
+                                                        screen = AppScreen.Scan
+                                                        message = "Selected from lookup. Verify category and scan details before saving."
+                                                    }) { Text("Use in expiry entry", color = MahalaxmiRed) }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
 
