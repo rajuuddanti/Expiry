@@ -87,7 +87,7 @@ class MainActivity : ComponentActivity() {
             var code by remember { mutableStateOf("") }
             var name by remember { mutableStateOf("") }
             var ean by remember { mutableStateOf("") }
-            var qty by remember { mutableStateOf("1") }
+            var qty by remember { mutableStateOf("") }
             var expiry by remember { mutableStateOf(LocalDate.now(IndiaZone).format(DateTimeFormatter.ISO_DATE)) }
             var message by remember { mutableStateOf("") }
             var lookupQuery by remember { mutableStateOf("") }
@@ -96,31 +96,26 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(scannedValue) {
                 if (scannedValue.isNotBlank()) {
-                    code = scannedValue
-                    ean = scannedValue
+                    code = scannedValue.trim()
+                    ean = ""
+                    name = ""
                     scannedValue = ""
                 }
             }
 
-            LaunchedEffect(code, ean) {
-                // Resolve either the SKU/barcode field or the separate EAN field.
-                val lookupCodes = listOf(code.trim(), ean.trim())
-                    .filter { it.isNotBlank() }
-                    .distinct()
-                var matchedProduct: com.mahalaxmi.expiry.data.ProductMasterEntity? = null
-                var matchedCode = ""
-                for (lookupCode in lookupCodes) {
-                    matchedProduct = runCatching { dao.findProductByScanCode(lookupCode) }.getOrNull()
+            LaunchedEffect(code) {
+                // SKU/barcode input is the lookup source. Never retain the previous product
+                // name or invent an EAN when the current code has no match.
+                name = ""
+                ean = ""
+                val lookupCode = code.trim()
+                if (lookupCode.isNotBlank()) {
+                    val matchedProduct = runCatching { dao.findProductByScanCode(lookupCode) }.getOrNull()
                         ?: runCatching { dao.findProductBySku(lookupCode) }.getOrNull()
                     if (matchedProduct != null) {
-                        matchedCode = lookupCode
-                        break
-                    }
-                }
-                if (matchedProduct != null) {
-                    name = matchedProduct.skuName
-                    if (matchedCode != matchedProduct.skuCode && ean.isBlank()) {
-                        ean = matchedCode
+                        name = matchedProduct.skuName
+                        // MASTER has no dedicated EAN column, so leave EAN blank unless a
+                        // genuine barcode mapping is available from a separate source.
                     }
                 }
             }
@@ -197,14 +192,16 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.fillMaxWidth(), singleLine = true
                                     )
                                     OutlinedTextField(
-                                        value = name, onValueChange = { name = it },
-                                        label = { Text("Product name") },
-                                        modifier = Modifier.fillMaxWidth(), singleLine = true
+                                        value = name, onValueChange = { },
+                                        label = { Text("Product name (auto-filled)") },
+                                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                                        readOnly = true
                                     )
                                     OutlinedTextField(
-                                        value = ean, onValueChange = { ean = it },
-                                        label = { Text("EAN") },
-                                        modifier = Modifier.fillMaxWidth(), singleLine = true
+                                        value = ean, onValueChange = { },
+                                        label = { Text("EAN (when mapped)") },
+                                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                                        readOnly = true
                                     )
                                     OutlinedTextField(
                                         value = qty, onValueChange = { qty = it.filter(Char::isDigit) },
