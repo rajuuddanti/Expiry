@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.mahalaxmi.expiry.data.ExpiryDatabase
 import com.mahalaxmi.expiry.data.ExpiryEntryEntity
+import com.mahalaxmi.expiry.data.SupabaseSyncRepository
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -47,6 +48,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             val scope = rememberCoroutineScope()
             val entries by dao.observeEntries().collectAsState(initial = emptyList())
+            val syncRepository = remember { SupabaseSyncRepository(applicationContext, dao) }
+            var syncMessage by remember { mutableStateOf("Not synced yet") }
+            var isSyncing by remember { mutableStateOf(false) }
             var store by remember { mutableStateOf(prefs.getString("store", "") ?: "") }
             var screen by remember { mutableStateOf(AppScreen.Scan) }
             var code by remember { mutableStateOf("") }
@@ -250,7 +254,37 @@ class MainActivity : ComponentActivity() {
                             AppScreen.Settings -> {
                                 Column(Modifier.fillMaxSize().padding(16.dp)) {
                                     Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                                    Text("Select the store this device belongs to.", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
+                                    Text("Cloud sync and device store", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
+                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text("SUPABASE SYNC", fontWeight = FontWeight.Bold, color = MahalaxmiRed)
+                                            Text(syncMessage, fontSize = 13.sp)
+                                            Button(
+                                                onClick = {
+                                                    if (!isSyncing) {
+                                                        scope.launch {
+                                                            isSyncing = true
+                                                            syncMessage = "Syncing product master and pending entries…"
+                                                            try {
+                                                                val result = syncRepository.sync()
+                                                                syncMessage = result.message
+                                                            } catch (error: Exception) {
+                                                                syncMessage = error.message ?: "Sync failed. Check internet and Supabase configuration."
+                                                            } finally {
+                                                                isSyncing = false
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                                enabled = !isSyncing,
+                                                modifier = Modifier.fillMaxWidth(),
+                                                colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
+                                            ) {
+                                                Text(if (isSyncing) "SYNCING…" else "SYNC NOW")
+                                            }
+                                        }
+                                    }
+                                    Text("Select the store this device belongs to.", color = Color.Gray, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
                                     LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         items(stores) { s ->
                                             OutlinedButton(
