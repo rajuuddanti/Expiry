@@ -16,7 +16,7 @@ create policy "Published product master readable by app"
     on public.product_master
     for select
     to anon, authenticated
-    using (is_active = true);
+    using (true);
 
 drop policy if exists "Users can read their own expiry entries" on public.expiry_entries;
 create policy "Users can read their own expiry entries"
