@@ -15,7 +15,7 @@ interface ExpiryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntry(entry: ExpiryEntryEntity)
 
-    @Query("UPDATE expiry_entries SET deletedAt = :deletedAt WHERE id = :id AND deletedAt IS NULL")
+    @Query("UPDATE expiry_entries SET deletedAt = :deletedAt, syncStatus = 'PENDING' WHERE id = :id AND deletedAt IS NULL")
     suspend fun softDeleteEntry(id: String, deletedAt: String)
 
     @Query("SELECT * FROM expiry_entries WHERE syncStatus = 'PENDING' ORDER BY createdAt ASC")
