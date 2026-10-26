@@ -195,7 +195,7 @@ class MainActivity : ComponentActivity() {
                                                             quantity = q,
                                                             expiryDate = expiry,
                                                             sessionStart = session,
-                                                            createdAt = now.toOffsetDateTime().toString()
+                                                            createdAt = now.atZone(IndiaZone).toOffsetDateTime().toString()
                                                         )
                                                     )
                                                     code = ""; name = ""; ean = ""; qty = "1"
@@ -225,7 +225,7 @@ class MainActivity : ComponentActivity() {
                                                         Text("Store: ${item.store}")
                                                         Text("SKU: ${item.skuCode}    Scanned: ${item.scannedCode}")
                                                         Text("Qty: ${item.quantity}    Expiry: ${item.expiryDate}")
-                                                        TextButton(onClick = { scope.launch { dao.softDeleteEntry(item.id, LocalDateTime.now(IndiaZone).toOffsetDateTime().toString()) } }) {
+                                                        TextButton(onClick = { scope.launch { dao.softDeleteEntry(item.id, LocalDateTime.now(IndiaZone).atZone(IndiaZone).toOffsetDateTime().toString()) } }) {
                                                             Text("Delete entry", color = MahalaxmiRed)
                                                         }
                                                     }
