@@ -8,68 +8,37 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 import java.time.Instant
 
-/**
- * Offline-first Supabase synchronization.
- *
- * Uses only the Supabase publishable/anon key plus an anonymous Auth session.
- * Never put a service-role key in the Android app. Server-side RLS policies
- * must be installed before synchronization can succeed.
- */
-class SupabaseSyncRepository(
-    context: Context,
-    private val dao: ExpiryDao
-) {
+/** Offline-first sync against the live public.MASTER and public.expiry_scan_uploads tables. */
+class SupabaseSyncRepository(context: Context, private val dao: ExpiryDao) {
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences("expiry_supabase_sync", Context.MODE_PRIVATE)
     private val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
     private val apiKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY.trim()
 
-    data class SyncResult(
-        val productsUpdated: Int,
-        val entriesUploaded: Int,
-        val message: String
-    )
+    data class SyncResult(val productsUpdated: Int, val entriesUploaded: Int, val message: String)
 
     suspend fun sync(): SyncResult = withContext(Dispatchers.IO) {
-        check(baseUrl.startsWith("https://")) {
-            "Supabase URL is not configured. Set SUPABASE_URL in local.properties."
-        }
-        check(apiKey.isNotBlank()) {
-            "Supabase publishable key is not configured. Set SUPABASE_PUBLISHABLE_KEY in local.properties."
-        }
-
+        check(baseUrl.startsWith("https://")) { "Supabase URL is not configured. Set SUPABASE_URL in local.properties." }
+        check(apiKey.isNotBlank()) { "Supabase publishable key is not configured. Set SUPABASE_PUBLISHABLE_KEY in local.properties." }
         val session = ensureSession()
-        val productCount = downloadProductMaster(session.accessToken)
-        val uploadedCount = uploadPendingEntries(session.accessToken, session.userId)
-        SyncResult(
-            productsUpdated = productCount,
-            entriesUploaded = uploadedCount,
-            message = "Sync complete: $productCount product rows refreshed; $uploadedCount entries uploaded."
-        )
+        val count = downloadProductMaster(session.accessToken)
+        val uploaded = uploadPendingEntries(session.accessToken, session.userId)
+        SyncResult(count, uploaded, "Sync complete: $count master rows refreshed; $uploaded entries uploaded.")
     }
 
     private data class AuthSession(val accessToken: String, val refreshToken: String, val userId: String)
 
     private fun ensureSession(): AuthSession {
-        val savedAccess = prefs.getString("access_token", null)
-        val savedRefresh = prefs.getString("refresh_token", null)
-        if (!savedAccess.isNullOrBlank() && !savedRefresh.isNullOrBlank()) {
+        val refresh = prefs.getString("refresh_token", null)
+        if (!refresh.isNullOrBlank()) {
             runCatching {
-                val refreshed = requestJson(
-                    "POST",
-                    "/auth/v1/token?grant_type=refresh_token",
-                    JSONObject().put("refresh_token", savedRefresh),
-                    bearer = apiKey
-                )
-                return persistSession(refreshed)
+                return persistSession(requestJson("POST", "/auth/v1/token?grant_type=refresh_token",
+                    JSONObject().put("refresh_token", refresh), apiKey))
             }
         }
-        // Anonymous sign-in must be enabled in Supabase Auth settings.
-        val signedIn = requestJson("POST", "/auth/v1/signup", JSONObject(), bearer = apiKey)
-        return persistSession(signedIn)
+        return persistSession(requestJson("POST", "/auth/v1/signup", JSONObject(), apiKey))
     }
 
     private fun persistSession(json: JSONObject): AuthSession {
@@ -79,54 +48,48 @@ class SupabaseSyncRepository(
         check(access.isNotBlank() && refresh.isNotBlank() && userId.isNotBlank()) {
             "Supabase did not return an Auth session. Enable anonymous sign-in in Supabase Auth."
         }
-        prefs.edit()
-            .putString("access_token", access)
-            .putString("refresh_token", refresh)
-            .putString("user_id", userId)
-            .apply()
+        prefs.edit().putString("access_token", access).putString("refresh_token", refresh).putString("user_id", userId).apply()
         return AuthSession(access, refresh, userId)
     }
 
     private suspend fun downloadProductMaster(accessToken: String): Int {
-        // In this project product_master_staging IS the master list.
-        // It contains the scanned SKU/EAN code in sku_code and its lookup name in sku_name.
-        // Do not expect a separate product_master table or updated_at column.
-        val allRows = mutableListOf<ProductMasterEntity>()
+        val raw = mutableListOf<ProductMasterEntity>()
         var offset = 0
         val pageSize = 1000
         while (true) {
-            val path = "/rest/v1/product_master_staging?select=sku_code,sku_name&order=sku_code.asc"
-            val rows = requestArray(
-                "GET",
-                path,
-                body = null,
-                bearer = accessToken,
-                range = "$offset-${offset + pageSize - 1}"
-            )
+            // Do not sort by SkuCode: FCFS depends on the stacked source order.
+            val rows = requestArray("GET", "/rest/v1/MASTER?select=SkuCode,SkuLongName,Catg",
+                accessToken, "$offset-${offset + pageSize - 1}")
             for (i in 0 until rows.length()) {
                 val row = rows.getJSONObject(i)
-                val code = row.optString("sku_code").trim()
-                val name = row.optString("sku_name").trim()
+                val code = row.optString("SkuCode").trim()
+                val name = row.optString("SkuLongName").trim()
+                val category = row.optString("Catg").trim().takeIf { it.isNotBlank() && it != "null" }
                 if (code.isNotBlank() && name.isNotBlank()) {
-                    allRows += ProductMasterEntity(
-                        scanCode = code,
-                        skuCode = code,
-                        skuName = name,
-                        isActive = true
-                    )
+                    raw += ProductMasterEntity(scanCode = code, skuCode = code, skuName = name,
+                        category = category, rowOrder = raw.size, isActive = true)
                 }
             }
             if (rows.length() < pageSize) break
             offset += pageSize
         }
-
-        check(allRows.isNotEmpty()) {
-            "Supabase returned no rows from product_master_staging. Check the master data and SELECT policy; local cache was preserved."
+        check(raw.isNotEmpty()) {
+            "Supabase returned no rows from public.MASTER. Check SELECT access; local master cache was preserved."
         }
-        // This staging table is the authoritative master; refresh local lookup cache from it.
-        dao.replaceProductMaster(allRows)
+
+        // The first row for a product name is the FCFS SKU; following same-name rows are EAN/barcode rows.
+        // Keep all rows, including repeated names and codes, rather than deduplicating the master.
+        val firstSkuByName = LinkedHashMap<String, String>()
+        raw.forEach { row ->
+            val key = row.skuName.trim().lowercase()
+            if (key.isNotEmpty() && key !in firstSkuByName) firstSkuByName[key] = row.scanCode
+        }
+        val mapped = raw.map { row ->
+            row.copy(skuCode = firstSkuByName[row.skuName.trim().lowercase()] ?: row.scanCode)
+        }
+        dao.replaceProductMaster(mapped)
         prefs.edit().putString("product_master_last_sync", Instant.now().toString()).apply()
-        return allRows.size
+        return mapped.size
     }
 
     private suspend fun uploadPendingEntries(accessToken: String, userId: String): Int {
@@ -134,62 +97,33 @@ class SupabaseSyncRepository(
         var uploaded = 0
         for (entry in pending) {
             val body = JSONObject()
-                .put("client_record_id", entry.id)
+                .put("id", entry.id)
                 .put("owner_id", userId)
                 .put("store_name", entry.store)
-                .put("sku_code", entry.skuCode)
-                .put("sku_name", entry.productName)
-                .put("ean", entry.scannedCode)
+                .put("skucode", entry.skuCode)
+                .put("skuname", entry.productName)
+                .put("ean", entry.scannedCode.ifBlank { entry.skuCode })
                 .put("qty", entry.quantity)
-                .put("expiry_date", entry.expiryDate)
-                .put("session_start", entry.sessionStart)
-                .put("device_created_at", entry.createdAt)
+                .put("expirydate", entry.expiryDate)
                 .put("is_deleted", entry.deletedAt != null)
-                .put("deleted_at", entry.deletedAt)
-
-            requestJson(
-                "POST",
-                "/rest/v1/expiry_entries?on_conflict=client_record_id",
-                body,
-                bearer = accessToken,
-                prefer = "resolution=merge-duplicates,return=minimal"
-            )
+                .put("device_id", android.provider.Settings.Secure.getString(appContext.contentResolver, android.provider.Settings.Secure.ANDROID_ID))
+            requestJson("POST", "/rest/v1/expiry_scan_uploads?on_conflict=id", body, accessToken,
+                prefer = "resolution=merge-duplicates,return=minimal")
             dao.markEntriesSynced(listOf(entry.id))
             uploaded++
         }
         return uploaded
     }
 
-    private fun requestJson(
-        method: String,
-        path: String,
-        body: JSONObject?,
-        bearer: String,
-        prefer: String? = null
-    ): JSONObject {
+    private fun requestJson(method: String, path: String, body: JSONObject?, bearer: String, prefer: String? = null): JSONObject {
         val response = execute(method, path, body?.toString(), bearer, prefer, null)
         return if (response.isBlank()) JSONObject() else JSONObject(response)
     }
 
-    private fun requestArray(
-        method: String,
-        path: String,
-        body: JSONObject?,
-        bearer: String,
-        range: String
-    ): JSONArray {
-        val response = execute(method, path, body?.toString(), bearer, null, range)
-        return JSONArray(response)
-    }
+    private fun requestArray(method: String, path: String, bearer: String, range: String): JSONArray =
+        JSONArray(execute(method, path, null, bearer, null, range))
 
-    private fun execute(
-        method: String,
-        path: String,
-        body: String?,
-        bearer: String,
-        prefer: String?,
-        range: String?
-    ): String {
+    private fun execute(method: String, path: String, body: String?, bearer: String, prefer: String?, range: String?): String {
         val connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
             requestMethod = method
             connectTimeout = 15000
@@ -202,16 +136,17 @@ class SupabaseSyncRepository(
                 setRequestProperty("Content-Type", "application/json")
             }
             if (prefer != null) setRequestProperty("Prefer", prefer)
-            if (range != null) setRequestProperty("Range", range)
+            if (range != null) {
+                setRequestProperty("Range-Unit", "items")
+                setRequestProperty("Range", range)
+            }
         }
         try {
             if (body != null) connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
             val response = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-            if (status !in 200..299) {
-                throw IllegalStateException("Supabase request failed ($status): ${response.take(500)}")
-            }
+            if (status !in 200..299) throw IllegalStateException("Supabase request failed ($status): ${response.take(500)}")
             return response
         } finally {
             connection.disconnect()
