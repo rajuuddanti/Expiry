@@ -1,6 +1,7 @@
 // Supabase Edge Function: expiry-upload
-// Requires migration 005 to be applied and SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
-// configured as Edge Function secrets. Never ship the service-role key in Android.
+// Upload authorization is based on the signed-in user. Store name + observed IP are
+// audit signals; an unknown IP is allowed but flagged for admin review.
+// Never ship SUPABASE_SERVICE_ROLE_KEY in Android.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -14,13 +15,11 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
 }
 
-// Only use the platform edge IP header when present. Do not trust caller-provided
-// X-Forwarded-For fallbacks. If the trusted header is unavailable, retain NULL.
+// Only accept the edge platform's trusted client-IP header; never trust a caller's
+// X-Forwarded-For value. If unavailable, store NULL and flag the upload.
 function observedClientIp(req: Request): string | null {
   const value = req.headers.get("cf-connecting-ip")?.trim();
-  if (!value || value.length > 64) return null;
-  // inet validation is ultimately enforced by Postgres; reject obvious malformed values here.
-  if (!/^[0-9a-fA-F:.]+$/.test(value)) return null;
+  if (!value || value.length > 64 || !/^[0-9a-fA-F:.]+$/.test(value)) return null;
   return value;
 }
 
@@ -49,7 +48,6 @@ Deno.serve(async (req) => {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const deviceId = String(body.device_id ?? "").trim();
   const claimedStore = String(body.store_name ?? "").trim();
   const id = String(body.id ?? "").trim();
   const skuName = String(body.skuname ?? "").trim();
@@ -60,44 +58,59 @@ Deno.serve(async (req) => {
   const isDeleted = body.is_deleted === true;
   const ip = observedClientIp(req);
 
-  if (!deviceId || !claimedStore || !id || !skuName || !skuCode || !ean ||
-      !Number.isInteger(qty) || qty <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(expiryDate)) {
+  if (!claimedStore || claimedStore.length > 120 || !id || !skuName || !skuCode || !ean ||
+      !Number.isInteger(qty) || qty <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(expiryDate)) {
     return json({ error: "Missing or invalid upload fields" }, 400);
   }
 
-  const { data: registration, error: registryError } = await admin
-    .from("expiry_device_registry")
-    .select("registered_store,is_active")
-    .eq("device_id", deviceId)
-    .maybeSingle();
+  // Match an admin-approved store/IP pair. Unknown IPs are deliberately allowed
+  // and flagged; they are NOT auto-approved by this upload.
+  let securityFlag = ip === null;
+  let securityReason: string | null = ip === null ? "client_ip_unavailable" : null;
 
-  if (registryError) {
-    console.error("Device registry lookup failed", registryError.message);
-    return json({ error: "Security configuration unavailable" }, 503);
-  }
+  if (ip !== null) {
+    const { data: approvedPair, error: registryError } = await admin
+      .from("expiry_store_ip_registry")
+      .select("store_name")
+      .ilike("store_name", claimedStore)
+      .eq("approved_ip", ip)
+      .eq("is_active", true)
+      .maybeSingle();
 
-  if (!registration || !registration.is_active ||
-      registration.registered_store.trim().toLowerCase() !== claimedStore.toLowerCase()) {
+    if (registryError) {
+      console.error("Store/IP registry lookup failed", registryError.message);
+      return json({ error: "Security configuration unavailable" }, 503);
+    }
+    if (!approvedPair) {
+      securityFlag = true;
+      securityReason = "unrecognised_store_ip";
+      const { error: auditError } = await admin.from("expiry_security_events").insert({
+        event_type: "unrecognised_store_ip",
+        owner_id: authData.user.id,
+        claimed_store: claimedStore,
+        observed_ip: ip,
+        details: { upload_id: id },
+      });
+      if (auditError) console.error("Security event insert failed", auditError.message);
+    }
+  } else {
     const { error: auditError } = await admin.from("expiry_security_events").insert({
-      event_type: !registration ? "unregistered_device_upload" :
-        !registration.is_active ? "inactive_device_upload" : "store_mismatch",
-      device_id: deviceId,
+      event_type: "client_ip_unavailable",
       owner_id: authData.user.id,
-      registered_store: registration?.registered_store ?? null,
       claimed_store: claimedStore,
-      observed_ip: ip,
       details: { upload_id: id },
     });
     if (auditError) console.error("Security event insert failed", auditError.message);
-    return json({ error: "Device is not authorized for this store" }, 403);
   }
 
   const { error: uploadError } = await admin.from("expiry_scan_uploads").upsert({
     id,
     owner_id: authData.user.id,
-    store_name: registration.registered_store,
-    device_id: deviceId,
+    store_name: claimedStore,
+    device_id: null,
     ip_address: ip,
+    security_flag: securityFlag,
+    security_reason: securityReason,
     skuname: skuName,
     skucode: skuCode,
     ean,
@@ -112,5 +125,6 @@ Deno.serve(async (req) => {
     return json({ error: "Upload failed" }, 500);
   }
 
-  return json({ ok: true, id, ip_recorded: ip !== null });
+  return json({ ok: true, id, ip_recorded: ip !== null, security_flag: securityFlag,
+    security_reason: securityReason });
 });
