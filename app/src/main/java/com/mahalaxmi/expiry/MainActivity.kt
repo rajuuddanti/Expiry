@@ -64,14 +64,25 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            LaunchedEffect(code) {
-                val lookupCode = code.trim()
-                if (lookupCode.isNotBlank()) {
-                    val product = runCatching { dao.findProductByScanCode(lookupCode) }.getOrNull()
+            LaunchedEffect(code, ean) {
+                // Resolve either the SKU/barcode field or the separate EAN field.
+                val lookupCodes = listOf(code.trim(), ean.trim())
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                var matchedProduct: com.mahalaxmi.expiry.data.ProductMasterEntity? = null
+                var matchedCode = ""
+                for (lookupCode in lookupCodes) {
+                    matchedProduct = runCatching { dao.findProductByScanCode(lookupCode) }.getOrNull()
                         ?: runCatching { dao.findProductBySku(lookupCode) }.getOrNull()
-                    if (product != null) {
-                        name = product.skuName
-                        if (lookupCode != product.skuCode) ean = lookupCode
+                    if (matchedProduct != null) {
+                        matchedCode = lookupCode
+                        break
+                    }
+                }
+                if (matchedProduct != null) {
+                    name = matchedProduct.skuName
+                    if (matchedCode != matchedProduct.skuCode && ean.isBlank()) {
+                        ean = matchedCode
                     }
                 }
             }
