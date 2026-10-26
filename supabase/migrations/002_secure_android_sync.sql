@@ -43,3 +43,21 @@ create policy "Users can update their own expiry entries"
 -- Existing rows with owner_id NULL remain protected from client access.
 -- Admin-wide reporting should use a separately authenticated server-side path,
 -- not a service-role key embedded in the APK.
+
+
+-- Keep delta-sync watermarks reliable for every product-master update.
+create or replace function public.set_product_master_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+    new.updated_at = now();
+    return new;
+end;
+$$;
+
+drop trigger if exists product_master_set_updated_at on public.product_master;
+create trigger product_master_set_updated_at
+before update on public.product_master
+for each row
+execute function public.set_product_master_updated_at();
