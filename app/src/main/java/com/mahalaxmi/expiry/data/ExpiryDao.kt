@@ -17,9 +17,27 @@ interface ExpiryDao {
     suspend fun softDeleteEntry(id: String, deletedAt: String)
     @Query("SELECT * FROM expiry_entries WHERE syncStatus = 'PENDING' ORDER BY createdAt ASC")
     suspend fun getPendingEntries(): List<ExpiryEntryEntity>
-    @Query("SELECT * FROM product_master WHERE scanCode = :code AND isActive = 1 ORDER BY rowOrder ASC LIMIT 1")
+    @Query("""
+        SELECT * FROM product_master
+        WHERE isActive = 1 AND (
+            UPPER(TRIM(scanCode)) = UPPER(TRIM(:code))
+            OR (TRIM(scanCode) <> '' AND TRIM(:code) <> ''
+                AND TRIM(scanCode) NOT GLOB '*[^0-9]*' AND TRIM(:code) NOT GLOB '*[^0-9]*'
+                AND LTRIM(TRIM(scanCode), '0') = LTRIM(TRIM(:code), '0'))
+        )
+        ORDER BY rowOrder ASC LIMIT 1
+    """)
     suspend fun findProductByScanCode(code: String): ProductMasterEntity?
-    @Query("SELECT * FROM product_master WHERE skuCode = :code AND isActive = 1 ORDER BY rowOrder ASC LIMIT 1")
+    @Query("""
+        SELECT * FROM product_master
+        WHERE isActive = 1 AND (
+            UPPER(TRIM(skuCode)) = UPPER(TRIM(:code))
+            OR (TRIM(skuCode) <> '' AND TRIM(:code) <> ''
+                AND TRIM(skuCode) NOT GLOB '*[^0-9]*' AND TRIM(:code) NOT GLOB '*[^0-9]*'
+                AND LTRIM(TRIM(skuCode), '0') = LTRIM(TRIM(:code), '0'))
+        )
+        ORDER BY rowOrder ASC LIMIT 1
+    """)
     suspend fun findProductBySku(code: String): ProductMasterEntity?
     /** FCFS reverse lookup: first matching name row in master source order. */
     @Query("SELECT * FROM product_master WHERE LOWER(TRIM(skuName)) = LOWER(TRIM(:name)) AND isActive = 1 ORDER BY rowOrder ASC LIMIT 1")
