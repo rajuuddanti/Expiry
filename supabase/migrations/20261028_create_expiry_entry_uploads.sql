@@ -2,12 +2,15 @@
 -- Does not modify public.MASTER or expiry_return_rules.
 create table if not exists public.expiry_entry_uploads (
     id text primary key,
-    store_name text not null,
+    location text not null,
     skucode text not null,
     skuname text not null,
-    ean text not null,
+    ean_sku_scanned text not null,
     qty integer not null check (qty > 0),
-    expirydate date not null,
+    expiry_date date not null,
+    category text not null default '',
+    date date not null,
+    time time not null,
     is_deleted boolean not null default false,
     created_at timestamptz not null,
     deleted_at timestamptz,
@@ -16,9 +19,9 @@ create table if not exists public.expiry_entry_uploads (
 );
 
 create index if not exists expiry_entry_uploads_store_created_idx
-    on public.expiry_entry_uploads (store_name, created_at desc);
+    on public.expiry_entry_uploads (location, created_at desc);
 create index if not exists expiry_entry_uploads_expirydate_idx
-    on public.expiry_entry_uploads (expirydate);
+    on public.expiry_entry_uploads (expiry_date);
 
 alter table public.expiry_entry_uploads enable row level security;
 
@@ -29,7 +32,7 @@ create policy "expiry upload insert"
     on public.expiry_entry_uploads
     for insert to anon, authenticated
     with check (
-        id is not null and store_name <> '' and skucode <> ''
+        id is not null and location <> '' and skucode <> ''
         and skuname <> '' and qty > 0
     );
 
@@ -39,7 +42,7 @@ create policy "expiry upload retry update"
     for update to anon, authenticated
     using (true)
     with check (
-        id is not null and store_name <> '' and skucode <> ''
+        id is not null and location <> '' and skucode <> ''
         and skuname <> '' and qty > 0
     );
 
