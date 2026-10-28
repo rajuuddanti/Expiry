@@ -402,11 +402,11 @@ class MainActivity : ComponentActivity() {
                         when (screen) {
                             AppScreen.Scan -> {
                                 Column(
-                                    Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp).verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(7.dp)
                                 ) {
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Expiry Entry", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                        Text("Expiry Entry", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                                         TextButton(onClick = {
                                             showReturnRules = true
                                             if (returnRules.isEmpty() && !returnRulesLoading) {
@@ -473,30 +473,36 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                                        Column(Modifier.padding(14.dp)) {
-                                            Text("CURRENT STORE", color = Color.Gray, fontSize = 11.sp)
+                                        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                                            Text("CURRENT STORE", color = Color.Gray, fontSize = 10.sp)
                                             Text(if (store.isBlank()) "Select store in Settings" else store, fontWeight = FontWeight.Bold)
                                         }
                                     }
-                                    Button(
-                                        onClick = {
-                                            GmsBarcodeScanning.getClient(this@MainActivity)
-                                                .startScan()
-                                                .addOnSuccessListener { barcode ->
-                                                    barcode.rawValue?.let { scannedValue = it }
-                                                }
-                                                .addOnCanceledListener { message = "Scan cancelled" }
-                                                .addOnFailureListener { e -> message = "Scanner error: ${e.localizedMessage ?: "Please try again"}" }
-                                        },
-                                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
-                                    ) { Text("📷  SCAN WITH CAMERA", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
-
-                                    OutlinedTextField(
-                                        value = code, onValueChange = { code = it },
-                                        label = { Text("SKU code / scanned barcode") },
-                                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                                    )
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                    ) {
+                                        OutlinedTextField(
+                                            value = code, onValueChange = { code = it },
+                                            label = { Text("SKU code / scanned barcode") },
+                                            modifier = Modifier.weight(1f), singleLine = true
+                                        )
+                                        Button(
+                                            onClick = {
+                                                GmsBarcodeScanning.getClient(this@MainActivity)
+                                                    .startScan()
+                                                    .addOnSuccessListener { barcode ->
+                                                        barcode.rawValue?.let { scannedValue = it }
+                                                    }
+                                                    .addOnCanceledListener { message = "Scan cancelled" }
+                                                    .addOnFailureListener { e -> message = "Scanner error: ${e.localizedMessage ?: "Please try again"}" }
+                                            },
+                                            modifier = Modifier.size(width = 60.dp, height = 56.dp),
+                                            contentPadding = PaddingValues(0.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
+                                        ) { Text("📷", fontSize = 24.sp) }
+                                    }
                                     OutlinedTextField(
                                         value = name, onValueChange = { },
                                         label = { Text("Product name (auto-filled)") },
