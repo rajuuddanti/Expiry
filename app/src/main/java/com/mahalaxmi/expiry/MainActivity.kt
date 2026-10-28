@@ -168,11 +168,14 @@ class MainActivity : ComponentActivity() {
             var code by remember { mutableStateOf("") }
             var name by remember { mutableStateOf("") }
             var ean by remember { mutableStateOf("") }
+            var category by remember { mutableStateOf("") }
             var qty by remember { mutableStateOf("") }
             var expiry by remember { mutableStateOf(LocalDate.now(IndiaZone).format(DateTimeFormatter.ISO_DATE)) }
             var message by remember { mutableStateOf("") }
             var lookupQuery by remember { mutableStateOf("") }
             var lookupResults by remember { mutableStateOf(emptyList<com.mahalaxmi.expiry.data.ProductMasterEntity>()) }
+            var todayCategoryProducts by remember { mutableStateOf(emptyList<com.mahalaxmi.expiry.data.ProductMasterEntity>()) }
+            var pendingDelete by remember { mutableStateOf<ExpiryEntryEntity?>(null) }
             var lookupMessage by remember { mutableStateOf("Search by product name, SKU code, or EAN/barcode.") }
             var showReturnRules by remember { mutableStateOf(false) }
             var returnRules by remember { mutableStateOf(emptyList<SupabaseSyncRepository.ReturnRule>()) }
@@ -187,9 +190,18 @@ class MainActivity : ComponentActivity() {
                 if (scannedValue.isNotBlank()) {
                     code = scannedValue.trim()
                     ean = ""
+                    category = ""
                     name = ""
                     scannedValue = ""
                 }
+            }
+
+            LaunchedEffect(todaySchedule) {
+                val categoryKeys = todaySchedule.flatMap { row ->
+                    listOf(row.category.trim().uppercase(), row.baseCategory.trim().uppercase())
+                }.distinct()
+                todayCategoryProducts = if (categoryKeys.isEmpty()) emptyList() else
+                    runCatching { dao.getProductsForCategories(categoryKeys) }.getOrDefault(emptyList())
             }
 
             LaunchedEffect(code) {
@@ -197,12 +209,14 @@ class MainActivity : ComponentActivity() {
                 // name or invent an EAN when the current code has no match.
                 name = ""
                 ean = ""
+                category = ""
                 val lookupCode = code.trim()
                 if (lookupCode.isNotBlank()) {
                     val matchedProduct = runCatching { dao.findProductByScanCode(lookupCode) }.getOrNull()
                         ?: runCatching { dao.findProductBySku(lookupCode) }.getOrNull()
                     if (matchedProduct != null) {
                         name = matchedProduct.skuName
+                        category = matchedProduct.category.orEmpty()
                         // MASTER has no dedicated EAN column, so leave EAN blank unless a
                         // genuine barcode mapping is available from a separate source.
                     }
@@ -210,6 +224,23 @@ class MainActivity : ComponentActivity() {
             }
 
             MaterialTheme {
+                if (pendingDelete != null) {
+                    AlertDialog(
+                        onDismissRequest = { pendingDelete = null },
+                        title = { Text("Confirm deletion") },
+                        text = { Text("Delete this expiry entry from the active history? It will be marked deleted and queued for sync.") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val item = pendingDelete
+                                pendingDelete = null
+                                if (item != null) scope.launch {
+                                    dao.softDeleteEntry(item.id, LocalDateTime.now(IndiaZone).atZone(IndiaZone).toOffsetDateTime().toString())
+                                }
+                            }) { Text("DELETE", color = MahalaxmiRed) }
+                        },
+                        dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("CANCEL") } }
+                    )
+                }
                 Scaffold(
                     bottomBar = {
                         NavigationBar(containerColor = Color.White) {
@@ -353,8 +384,8 @@ class MainActivity : ComponentActivity() {
                                         readOnly = true
                                     )
                                     OutlinedTextField(
-                                        value = ean, onValueChange = { },
-                                        label = { Text("EAN (when mapped)") },
+                                        value = category, onValueChange = { },
+                                        label = { Text("Category (from product master)") },
                                         modifier = Modifier.fillMaxWidth(), singleLine = true,
                                         readOnly = true
                                     )
@@ -407,7 +438,7 @@ class MainActivity : ComponentActivity() {
                                                             createdAt = now.atZone(IndiaZone).toOffsetDateTime().toString()
                                                         )
                                                     )
-                                                    code = ""; name = ""; ean = ""; qty = "1"
+                                                    code = ""; name = ""; ean = ""; category = ""; qty = "1"
                                                     message = "Entry saved locally. Category captured for export and upload."
                                                 }
                                             }
@@ -422,6 +453,30 @@ class MainActivity : ComponentActivity() {
                             AppScreen.Lookup -> {
                                 Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     Text("SKU Lookup", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                    Text("TODAY'S CATEGORY LIST • ${LocalDate.now(IndiaZone)}", fontWeight = FontWeight.Bold, color = MahalaxmiRed)
+                                    if (todaySchedule.isEmpty()) {
+                                        Text("No categories are scheduled for today.", color = Color.Gray, fontSize = 12.sp)
+                                    } else {
+                                        todaySchedule.forEach { row ->
+                                            Text("${row.baseCategory} • ${todayCategoryProducts.count { normalizedRuleName(it.category.orEmpty()) == normalizedRuleName(row.baseCategory) }} SKU(s)", fontWeight = FontWeight.SemiBold)
+                                        }
+                                        if (todayCategoryProducts.isEmpty()) {
+                                            Text("No products matched today's scheduled categories in the locally synced master.", color = Color.Gray, fontSize = 12.sp)
+                                        } else {
+                                            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                items(todayCategoryProducts, key = { "today-${it.rowId}" }) { product ->
+                                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp)) {
+                                                        Column(Modifier.padding(8.dp)) {
+                                                            Text(product.skuName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                                            Text("SKU: ${product.skuCode} • ${product.category.orEmpty()}", fontSize = 11.sp, color = Color.Gray)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Divider()
+                                    Text("SEARCH A PARTICULAR PRODUCT", fontWeight = FontWeight.Bold)
                                     Text("Search MASTER by product name, SKU code, or EAN/barcode. SKU and EAN codes share SkuCode; duplicate rows are preserved.",
                                         color = Color.Gray, fontSize = 12.sp)
                                     OutlinedTextField(
@@ -499,7 +554,7 @@ class MainActivity : ComponentActivity() {
                                                         Text("Qty: ${item.quantity}    Expiry: ${item.expiryDate}")
                                                         Text("Category: ${item.category.ifBlank { "Pending verification" }}")
                                                         Text("Entered: ${item.createdAt}")
-                                                        TextButton(onClick = { scope.launch { dao.softDeleteEntry(item.id, LocalDateTime.now(IndiaZone).atZone(IndiaZone).toOffsetDateTime().toString()) } }) {
+                                                        TextButton(onClick = { pendingDelete = item }) {
                                                             Text("Delete entry", color = MahalaxmiRed)
                                                         }
                                                     }
