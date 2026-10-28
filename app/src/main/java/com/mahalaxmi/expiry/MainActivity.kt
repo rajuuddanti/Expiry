@@ -451,9 +451,12 @@ class MainActivity : ComponentActivity() {
                             }
 
                             AppScreen.Lookup -> {
-                                val filteredCategoryProducts = remember(todayCategoryProducts, lookupQuery) {
-                                    if (lookupQuery.isBlank()) todayCategoryProducts
-                                    else todayCategoryProducts.filter { product ->
+                                val uniqueCategoryProducts = remember(todayCategoryProducts) {
+                                    todayCategoryProducts.distinctBy { it.skuName.trim().lowercase() }
+                                }
+                                val filteredCategoryProducts = remember(uniqueCategoryProducts, lookupQuery) {
+                                    if (lookupQuery.isBlank()) uniqueCategoryProducts
+                                    else uniqueCategoryProducts.filter { product ->
                                         product.skuName.contains(lookupQuery, ignoreCase = true) ||
                                             product.skuCode.contains(lookupQuery, ignoreCase = true) ||
                                             product.scanCode.contains(lookupQuery, ignoreCase = true)
