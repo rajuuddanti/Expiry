@@ -43,6 +43,59 @@ private val MahalaxmiRed = Color(0xFFB71C1C)
 private val IndiaZone = ZoneId.of("Asia/Kolkata")
 private enum class AppScreen { Scan, Lookup, History, Settings }
 
+private data class InspectionScheduleRow(val date: LocalDate, val category: String, val cycleDays: Int) {
+    val baseCategory: String get() = category.substringBefore("(").trim().uppercase()
+}
+
+private fun loadInspectionSchedule(activity: ComponentActivity): List<InspectionScheduleRow> = runCatching {
+    val json = org.json.JSONArray(activity.assets.open("inspection_schedule.json").bufferedReader().use { it.readText() })
+    buildList {
+        for (i in 0 until json.length()) {
+            val row = json.getJSONObject(i)
+            val date = runCatching { LocalDate.parse(row.getString("date")) }.getOrNull() ?: continue
+            val category = row.optString("category").trim()
+            val cycle = row.optInt("cycleDays", 0)
+            if (category.isNotBlank() && cycle > 0) add(InspectionScheduleRow(date, category, cycle))
+        }
+    }
+}.getOrDefault(emptyList())
+
+/** Keeps the supplied calendar unchanged; beyond its end, continue each category's last cycle,
+ * assigning at most two categories per day and rolling overdue categories forward in due-date order. */
+private fun scheduledRowsForDate(source: List<InspectionScheduleRow>, target: LocalDate): List<InspectionScheduleRow> {
+    if (source.isEmpty()) return emptyList()
+    val exact = source.filter { it.date == target }
+    if (exact.isNotEmpty() || target <= source.maxOf { it.date }) return exact
+
+    data class CycleState(val category: String, val cycleDays: Int, var nextDue: LocalDate)
+    val latest = source.groupBy { it.baseCategory }.mapNotNull { (_, rows) ->
+        val last = rows.maxByOrNull { it.date } ?: return@mapNotNull null
+        CycleState(last.baseCategory, last.cycleDays, last.date.plusDays(last.cycleDays.toLong()))
+    }.toMutableList()
+    var day = source.maxOf { it.date }.plusDays(1)
+    var result = emptyList<InspectionScheduleRow>()
+    while (day <= target) {
+        val due = latest.filter { !it.nextDue.isAfter(day) }
+            .sortedWith(compareBy<CycleState> { it.nextDue }.thenBy { it.category })
+            .take(2)
+        result = due.map { InspectionScheduleRow(day, it.category, it.cycleDays) }
+        due.forEach { it.nextDue = day.plusDays(it.cycleDays.toLong()) }
+        day = day.plusDays(1)
+    }
+    return result
+}
+
+private fun normalizedRuleName(value: String): String =
+    value.uppercase().filter { it.isLetterOrDigit() }
+
+private fun categoryRuleFor(category: String, rules: List<SupabaseSyncRepository.ReturnRule>): SupabaseSyncRepository.ReturnRule? {
+    val key = normalizedRuleName(category.substringBefore("("))
+    return rules.filter { it.ruleType == "category" }.firstOrNull {
+        val ruleKey = normalizedRuleName(it.matchValue)
+        key.contains(ruleKey) || ruleKey.contains(key)
+    }
+}
+
 class MainActivity : ComponentActivity() {
     private var scannedValue by mutableStateOf("")
     private fun shareCsv(entries: List<ExpiryEntryEntity>) {
@@ -107,6 +160,14 @@ class MainActivity : ComponentActivity() {
             var lookupQuery by remember { mutableStateOf("") }
             var lookupResults by remember { mutableStateOf(emptyList<com.mahalaxmi.expiry.data.ProductMasterEntity>()) }
             var lookupMessage by remember { mutableStateOf("Search by product name, SKU code, or EAN/barcode.") }
+            var showReturnRules by remember { mutableStateOf(false) }
+            var returnRules by remember { mutableStateOf(emptyList<SupabaseSyncRepository.ReturnRule>()) }
+            var returnRulesLoading by remember { mutableStateOf(false) }
+            var returnRulesError by remember { mutableStateOf("") }
+            val inspectionSchedule = remember { loadInspectionSchedule(this@MainActivity) }
+            val todaySchedule = remember(LocalDate.now(IndiaZone), inspectionSchedule) {
+                scheduledRowsForDate(inspectionSchedule, LocalDate.now(IndiaZone))
+            }
 
             LaunchedEffect(scannedValue) {
                 if (scannedValue.isNotBlank()) {
@@ -179,7 +240,73 @@ class MainActivity : ComponentActivity() {
                                     Modifier.fillMaxSize().padding(16.dp),
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Text("Expiry Entry", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("Expiry Entry", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                        TextButton(onClick = {
+                                            showReturnRules = true
+                                            if (returnRules.isEmpty() && !returnRulesLoading) {
+                                                scope.launch {
+                                                    returnRulesLoading = true
+                                                    returnRulesError = ""
+                                                    try {
+                                                        returnRules = syncRepository.fetchReturnRules()
+                                                    } catch (error: Exception) {
+                                                        returnRulesError = error.message ?: "Could not load return rules."
+                                                    } finally {
+                                                        returnRulesLoading = false
+                                                    }
+                                                }
+                                            }
+                                        }) { Text("ⓘ Return Rules", color = MahalaxmiRed, fontWeight = FontWeight.Bold) }
+                                    }
+                                    if (showReturnRules) {
+                                        val categoryRules = todaySchedule.mapNotNull { row ->
+                                            val rule = categoryRuleFor(row.category, returnRules)
+                                            rule?.let {
+                                                val effective = maxOf(it.returnDays, row.cycleDays)
+                                                Triple(row, it, effective)
+                                            }
+                                        }
+                                        val brandRules = returnRules.filter { it.ruleType == "brand" }
+                                            .sortedByDescending { it.priority }
+                                        AlertDialog(
+                                            onDismissRequest = { showReturnRules = false },
+                                            title = { Text("Return Rules • ${LocalDate.now(IndiaZone)}") },
+                                            text = {
+                                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    Text("TODAY'S SCHEDULED CATEGORIES", fontWeight = FontWeight.Bold, color = MahalaxmiRed)
+                                                    when {
+                                                        returnRulesLoading -> Text("Loading rules from Supabase…")
+                                                        returnRulesError.isNotBlank() -> Text("Could not load rules: $returnRulesError")
+                                                        todaySchedule.isEmpty() -> Text("No category is scheduled for today.")
+                                                        categoryRules.isEmpty() -> Text("No matching category rules were found for today's schedule.")
+                                                        else -> categoryRules.forEach { (row, rule, effective) ->
+                                                            Column {
+                                                                Text(row.baseCategory, fontWeight = FontWeight.SemiBold)
+                                                                Text("Return days: ${effective} days", fontSize = 13.sp)
+                                                                if (effective != rule.returnDays) {
+                                                                    Text("Configured: ${rule.returnDays} days • Cycle: ${row.cycleDays} days", fontSize = 11.sp, color = Color.Gray)
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    Divider()
+                                                    Text("BRAND RULES", fontWeight = FontWeight.Bold, color = MahalaxmiRed)
+                                                    if (returnRulesLoading) {
+                                                        Text("Loading brand rules…")
+                                                    } else if (brandRules.isEmpty()) {
+                                                        Text("Himalaya — 60 days\nKellogg's — 30 days", fontSize = 13.sp)
+                                                        Text("Live brand rules could not be confirmed; showing configured defaults.", fontSize = 11.sp, color = Color.Gray)
+                                                    } else {
+                                                        brandRules.forEach { rule ->
+                                                            Text("${rule.matchValue}: ${rule.returnDays} days", fontWeight = FontWeight.SemiBold)
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            confirmButton = { TextButton(onClick = { showReturnRules = false }) { Text("CLOSE") } }
+                                        )
+                                    }
                                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                                         Column(Modifier.padding(14.dp)) {
                                             Text("CURRENT STORE", color = Color.Gray, fontSize = 11.sp)
