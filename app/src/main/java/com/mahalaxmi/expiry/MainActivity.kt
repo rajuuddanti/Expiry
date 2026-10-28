@@ -164,6 +164,11 @@ class MainActivity : ComponentActivity() {
             var isUploading by remember { mutableStateOf(false) }
             var uploadMessage by remember { mutableStateOf("Expiry entries have not been uploaded yet.") }
             var store by remember { mutableStateOf(prefs.getString("store", "") ?: "") }
+            var storeDraft by remember { mutableStateOf("") }
+            var storePinInput by remember { mutableStateOf("") }
+            var showStorePinDialog by remember { mutableStateOf(false) }
+            var showStoreNameDialog by remember { mutableStateOf(false) }
+            var categoryMismatchPending by remember { mutableStateOf(false) }
             var screen by remember { mutableStateOf(AppScreen.Scan) }
             var code by remember { mutableStateOf("") }
             var name by remember { mutableStateOf("") }
@@ -223,7 +228,119 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            fun saveExpiryEntry() {
+                val q = qty.toIntOrNull()
+                val validDate = runCatching { LocalDate.parse(expiry) }.isSuccess
+                if (store.isBlank()) {
+                    message = "Please select your store in Settings."
+                } else if (code.isBlank() || name.isBlank() || q == null || q <= 0 || !validDate) {
+                    message = "Enter product, quantity and expiry date correctly."
+                } else {
+                    scope.launch {
+                        val matchedProduct = runCatching { dao.findProductByScanCode(code.trim()) }.getOrNull()
+                            ?: runCatching { dao.findProductBySku(code.trim()) }.getOrNull()
+                        val now = LocalDateTime.now(IndiaZone)
+                        val sessionDate = if (now.hour < 15) now.toLocalDate().minusDays(1) else now.toLocalDate()
+                        val session = sessionDate.atTime(15, 0).atZone(IndiaZone).toOffsetDateTime().toString()
+                        dao.insertEntry(
+                            ExpiryEntryEntity(
+                                id = java.util.UUID.randomUUID().toString(),
+                                store = store,
+                                skuCode = matchedProduct?.skuCode ?: code.trim(),
+                                productName = name.trim(),
+                                scannedCode = code.trim(),
+                                category = matchedProduct?.category.orEmpty(),
+                                quantity = q,
+                                expiryDate = expiry,
+                                sessionStart = session,
+                                createdAt = now.atZone(IndiaZone).toOffsetDateTime().toString()
+                            )
+                        )
+                        code = ""; name = ""; ean = ""; category = ""; qty = "1"
+                        message = "Entry saved locally. Category captured for export and upload."
+                    }
+                }
+            }
+
             MaterialTheme {
+                if (showStorePinDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showStorePinDialog = false; storePinInput = "" },
+                        title = { Text("Authorize store change") },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Enter the PIN to change the store name.")
+                                OutlinedTextField(
+                                    value = storePinInput,
+                                    onValueChange = { storePinInput = it.filter(Char::isDigit).take(4) },
+                                    label = { Text("PIN") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                                    singleLine = true
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                if (storePinInput == "3331") {
+                                    storeDraft = store
+                                    storePinInput = ""
+                                    showStorePinDialog = false
+                                    showStoreNameDialog = true
+                                } else {
+                                    storePinInput = ""
+                                    message = "Incorrect PIN. Store name was not changed."
+                                }
+                            }) { Text("CONTINUE", color = MahalaxmiRed) }
+                        },
+                        dismissButton = { TextButton(onClick = { showStorePinDialog = false; storePinInput = "" }) { Text("CANCEL") } }
+                    )
+                }
+                if (showStoreNameDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showStoreNameDialog = false },
+                        title = { Text("Change store name") },
+                        text = {
+                            OutlinedTextField(
+                                value = storeDraft,
+                                onValueChange = { storeDraft = it },
+                                label = { Text("Store name") },
+                                singleLine = true
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                if (storeDraft.isNotBlank()) {
+                                    store = storeDraft.trim()
+                                    prefs.edit().putString("store", store).apply()
+                                    message = "Store name updated."
+                                }
+                                showStoreNameDialog = false
+                            }) { Text("SAVE", color = MahalaxmiRed) }
+                        },
+                        dismissButton = { TextButton(onClick = { showStoreNameDialog = false }) { Text("CANCEL") } }
+                    )
+                }
+                if (categoryMismatchPending) {
+                    val todayCategories = todaySchedule.map { it.baseCategory }.distinct()
+                    AlertDialog(
+                        onDismissRequest = { categoryMismatchPending = false },
+                        title = { Text("Category mismatch") },
+                        text = {
+                            Text(
+                                "Product: $name\nEntered SKU category: ${category.ifBlank { "Unknown" }}\nPresent day category: ${todayCategories.joinToString(", ").ifBlank { "None scheduled" }}\n\nDo you wish to continue?"
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                categoryMismatchPending = false
+                                saveExpiryEntry()
+                            }) { Text("YES", color = MahalaxmiRed) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { categoryMismatchPending = false }) { Text("NO") }
+                        }
+                    )
+                }
                 if (pendingDelete != null) {
                     AlertDialog(
                         onDismissRequest = { pendingDelete = null },
@@ -397,50 +514,37 @@ class MainActivity : ComponentActivity() {
                                     )
                                     OutlinedButton(
                                         onClick = {
-                                            val current = runCatching { LocalDate.parse(expiry) }.getOrDefault(LocalDate.now(IndiaZone))
-                                            val picker = android.app.DatePickerDialog(
-                                                this@MainActivity,
-                                                { _, year, month, day ->
-                                                    expiry = LocalDate.of(year, month + 1, day).format(DateTimeFormatter.ISO_DATE)
-                                                },
-                                                current.year, current.monthValue - 1, current.dayOfMonth
-                                            )
-                                            picker.show()
+                                            scope.launch {
+                                                if (returnRules.isEmpty() && !returnRulesLoading) {
+                                                    runCatching { returnRules = syncRepository.fetchReturnRules() }
+                                                }
+                                                val current = runCatching { LocalDate.parse(expiry) }.getOrDefault(LocalDate.now(IndiaZone))
+                                                val picker = android.app.DatePickerDialog(
+                                                    this@MainActivity,
+                                                    { _, year, month, day ->
+                                                        expiry = LocalDate.of(year, month + 1, day).format(DateTimeFormatter.ISO_DATE)
+                                                    },
+                                                    current.year, current.monthValue - 1, current.dayOfMonth
+                                                )
+                                                val rule = categoryRuleFor(category, returnRules)
+                                                if (rule != null) {
+                                                    val maxAllowed = LocalDate.now(IndiaZone).plusDays(rule.returnDays.toLong())
+                                                    picker.datePicker.maxDate = maxAllowed.atStartOfDay(IndiaZone).toInstant().toEpochMilli()
+                                                }
+                                                picker.show()
+                                            }
                                         },
                                         modifier = Modifier.fillMaxWidth()
                                     ) { Text("Expiry date: $expiry  •  Choose date") }
 
                                     Button(
                                         onClick = {
-                                            val q = qty.toIntOrNull()
-                                            val validDate = runCatching { LocalDate.parse(expiry) }.isSuccess
-                                            if (store.isBlank()) {
-                                                message = "Please select your store in Settings."
-                                            } else if (code.isBlank() || name.isBlank() || q == null || q <= 0 || !validDate) {
-                                                message = "Enter product, quantity and expiry date correctly."
+                                            val enteredCategory = normalizedRuleName(category)
+                                            val allowedToday = todaySchedule.map { normalizedRuleName(it.baseCategory) }
+                                            if (enteredCategory.isNotBlank() && enteredCategory !in allowedToday) {
+                                                categoryMismatchPending = true
                                             } else {
-                                                val now = LocalDateTime.now(IndiaZone)
-                                                val sessionDate = if (now.hour < 15) now.toLocalDate().minusDays(1) else now.toLocalDate()
-                                                val session = sessionDate.atTime(15, 0).atZone(IndiaZone).toOffsetDateTime().toString()
-                                                scope.launch {
-                                                    dao.insertEntry(
-                                                        ExpiryEntryEntity(
-                                                            id = java.util.UUID.randomUUID().toString(),
-                                                            store = store,
-                                                            skuCode = (runCatching { dao.findProductByScanCode(code.trim()) }.getOrNull() ?: runCatching { dao.findProductBySku(code.trim()) }.getOrNull())?.skuCode ?: code.trim(),
-                                                            productName = name.trim(),
-                                                            scannedCode = code.trim(),
-                                                            category = (runCatching { dao.findProductByScanCode(code.trim()) }.getOrNull()
-                                                                ?: runCatching { dao.findProductBySku(code.trim()) }.getOrNull())?.category.orEmpty(),
-                                                            quantity = q,
-                                                            expiryDate = expiry,
-                                                            sessionStart = session,
-                                                            createdAt = now.atZone(IndiaZone).toOffsetDateTime().toString()
-                                                        )
-                                                    )
-                                                    code = ""; name = ""; ean = ""; category = ""; qty = "1"
-                                                    message = "Entry saved locally. Category captured for export and upload."
-                                                }
+                                                saveExpiryEntry()
                                             }
                                         },
                                         modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -591,7 +695,18 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     }
-                                    OutlinedTextField(value = store, onValueChange = { store = it; prefs.edit().putString("store", it).apply() }, label = { Text("Store name (manual entry)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                    OutlinedTextField(
+                                        value = store,
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        label = { Text("Store name") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                    )
+                                    OutlinedButton(
+                                        onClick = { storePinInput = ""; showStorePinDialog = true },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text("CHANGE STORE NAME (PIN REQUIRED)") }
                                 }
                             }
                         }
