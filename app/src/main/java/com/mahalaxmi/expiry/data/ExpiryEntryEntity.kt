@@ -23,6 +23,7 @@ data class ExpiryEntryEntity(
     val skuCode: String,
     val productName: String,
     val scannedCode: String,
+    val category: String = "",
     val quantity: Int,
     val expiryDate: String,
     val sessionStart: String,
