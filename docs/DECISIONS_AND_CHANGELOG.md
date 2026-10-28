@@ -1,80 +1,69 @@
-# Decisions and Conversation Changelog
+# Decisions and Changelog
 
-Last updated: 2026-10-26
+Last updated: 2026-10-28 (Asia/Kolkata)
 
-This file records the decisions confirmed in conversation. Distinguish user-confirmed decisions from items still to verify.
+This file separates user-confirmed decisions from requirements that still need implementation or verification. For the current full state, read `docs/CURRENT_HANDOFF.md`.
 
-## Confirmed decisions
+## Confirmed core decisions
 
-### Purpose
-Build an Android expiry-date capture tool for Mahalaxmi Mahamart store staff. Staff scan products, record quantity and expiry date, and later review/sync the records.
+### Product master and code mapping
+- Latest reported source is `public.MASTER` with `"SkuCode"`, `"SkuLongName"`, `"Catg"`.
+- Source has SKU and EAN/barcode codes stacked in one code column; no separate EAN column in the latest master.
+- Preserve original source order.
+- Digit-only codes shorter than 5 characters are left-padded to 5; codes of length 5 or more remain unchanged.
+- Keep codes as TEXT; do not truncate long barcodes.
+- If product names duplicate, first SKU in original source order wins (FCFS).
+- When an EAN/barcode is scanned, keep raw scanned code separate from canonical SKU. When a SKU is scanned directly, both can be the same.
 
-### Master file
-- Original master uploaded in conversation: `Multiple MRP Report20260223060241.CSV(1).xlsx`.
-- Source columns: `SkuCode/EAN`, `SkuLongName`.
-- SKU codes and EANs are intentionally stacked in one code column, not provided in separate SKU and EAN columns.
-- User says first approximately 28–30K rows are SKU codes in sequence and EAN rows follow. Verify actual boundary using staging data.
-- One searchable destination column `scan_code` is desired so app scanning logic doesn't have to choose between separate SKU and EAN columns.
+### Local expiry entries
+- Expiry records stay on the device in Room.
+- Do not upload expiry records to Supabase under the latest decision.
+- Provide CSV export/share for email or WhatsApp.
+- Preserve local records and avoid data loss when offline or sync fails.
+- Daily device history/session anchor is 3 PM local time.
 
-### Code formatting
-User's exact rule: “if any sku/ean code is less that 5 digits add 0 before to amke it 5 digit thats it”.
-- Fewer than 5 digits: left-pad to five digits.
-- Five or more digits: unchanged.
-- Keep all codes as text.
+### Return rules
+- One table `public.expiry_return_rules` contains category and brand rules.
+- Recorded Supabase result: 32 rules total (30 category rules + 2 brand rules).
+- Brand overrides: HIMALAYA = 60 days; KELLOGGS = 30 days.
+- Brand rule should take precedence over category rule.
+- User requested a tappable Return Rules icon/dialog showing categories scheduled on the current day with return days and a separate brand section.
+- The app should calculate effective category return days as `max(configured_return_days, schedule_interval_days)` when the configured return window is shorter than the inspection interval. Keep source rule values unchanged in Supabase.
+- It remains unconfirmed whether the schedule-day floor also modifies brand rules. Do not silently alter the two configured brand values.
 
-### Matching / duplicates
-User's exact intended logic:
-- Whichever code is scanned should get the product name.
-- If an EAN row's name is used to reverse lookup a SKU, search SKU rows in source order and choose the first match (FCFS).
-- If duplicate names occur, first matching SKU wins.
-- Avoid overcomplicating this logic.
+### Schedule
+- `SCHEDULER.csv` covers 2026-10-23 through 2027-12-31.
+- Preserve existing category rotation and the maximum two categories/day rule.
+- Schedule should continue after 2027 from the exact end-of-2027 state, not restart arbitrarily.
+- Return popup/effective return logic/automatic schedule continuation are requested work, not confirmed implemented or tested.
 
-### Tables
-- Two production tables only: `product_master` and `expiry_entries`.
-- A temporary `product_master_staging` helper table is currently used to import the two-column source.
-- No category column/table is wanted.
-- Live `product_master` screenshot showed exactly three NOT NULL TEXT columns: `scan_code`, `sku_code`, `sku_name`.
+### Supabase and security
+- Latest reported tables: `public.MASTER`, `public.expiry_return_rules`.
+- The user-reported migration removed `expiry_scan_uploads`, `expiry_device_registry`, `expiry_security_events`, and `expiry_store_ip_registry`.
+- Do not change Supabase config/credentials unless explicitly requested.
+- Do not put service-role keys in the Android app.
+- The assistant must not imply live Supabase access or claim to have queried the user's project unless a connected tool actually did so.
 
-### App and data handling
-- Store selected on first launch and saved locally; editable in Settings.
-- Scan by camera or manual code entry.
-- Autofill product name and canonical SKU.
-- Quantity and expiry date (calendar picker).
-- Offline-first: persist locally, then sync online.
-- Daily session runs 3 PM IST to next day 3 PM.
-- Preserve unsynced records.
-- Soft-delete corrections/deletions; don't physically delete expiry entries.
-- Keep UI straightforward and store-staff friendly.
+## Recent technical work recorded in prior session
 
-### Security
-- Never put service-role key into APK.
-- Store selection is not authentication.
-- Configure RLS and a controlled access path before production.
+Changes were reported for:
+- local-only expiry entries and CSV share/export;
+- FCFS lookup and raw scanned-code tracking;
+- Android FileProvider configuration for sharing;
+- changing master refresh interval from 15 minutes to 24 hours.
 
-## Conversation and import troubleshooting
+Recorded commit IDs:
+- `9002bde4b230e5475a15ecebeae374120c26bd43`
+- `ca764f735349bc2d4eea7efc0b81dbaf96392668`
+- `3dd706937bc072f77e5a15a0ac9bd6d61c911d01`
+- `caa9ea584da921bcad72138380e8385680beab12`
 
-1. User reported inability to upload master to Supabase and attached an error report.
-2. Error report indicated an Excel XLSX binary was being parsed as CSV (`PK... [Content_Types].xml`), causing malformed quote and field-count errors. Solution was to export as real CSV UTF-8 from Excel, not rename XLSX.
-3. User supplied the actual XLSX master. It was previously observed as about 124,212 rows with source columns `SkuCode/EAN` and `SkuLongName`; a prior quick inspection reported 12,358 blank-code rows. Revalidate from the source/staging rather than treating those counts as final truth.
-4. Direct CSV import into `product_master` failed with SQLSTATE 23502 because `scan_code` was null; failing row looked like `(null, 00001, DISCONTINUED 4065)`. This shows the original two-column file was not transformed into the required three-column schema.
-5. The user explained stacked rows and FCFS logic. The assistant initially misunderstood; current understanding is the user's logic above.
-6. User ran schema-inspection SQL in their own Supabase SQL Editor. Screenshot showed `product_master` columns `scan_code`, `sku_code`, `sku_name`, all TEXT and NOT NULL.
-7. Assistant gave staging SQL first without identity row id, then a revised version with `row_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY`, `source_code TEXT`, `source_name TEXT`.
-8. User said “import done broo” after the revised staging instructions. Staging data is not yet verified.
-9. User explicitly corrected the assistant: “supabase was never connected bro”. The assistant's Supabase connector must not be treated as access to the user's project. All SQL execution and live inspection are by the user in their own dashboard; assistant can prepare SQL and read screenshots/results.
+Verify current branch ancestry/source before assuming these commits are present. No build or device-test result was recorded.
 
-## Current next actions
-
-1. Continue from the user-reported completed staging CSV import.
-2. Ask user to run the diagnostic SQL in `docs/SQL_REFERENCE.md` and paste results/screenshots, or give one short SQL query that reports schema, counts and samples.
-3. Confirm staging table columns and row counts.
-4. Inspect first rows and rows around the approximate SKU/EAN boundary.
-5. Confirm row order is retained by `row_id`.
-6. Build a preview query for mapping, using verified boundary and FCFS.
-7. Show counts of mapped SKU rows, mapped EAN rows, blank rows, unmatched EAN names, and duplicate/conflicting scan codes.
-8. Only after preview review, provide final INSERT/UPSERT SQL.
-9. Then resume Android implementation. Check actual source tree before stating build status; README currently says repository is not yet a buildable Android app.
+## Earlier history (kept for context, may be stale)
+- The project originally considered `product_master`, `product_master_staging`, and `expiry_entries` with cloud upload/delta sync.
+- The earlier two-column import file was `SkuCode/EAN` and `SkuLongName`, and direct import into a different three-column `product_master` failed due to NULL `scan_code`.
+- These older workflow notes are retained in the SQL/import and daily-sync documents but must not override the latest local-only expiry-entry direction or the reported `MASTER`/return-rules table names.
 
 ## Working style
-
-User prefers a casual, direct “bro” tone and step-by-step instructions. Do not ask them to repeat context already documented. When user says “push .md files”, they mean commit the Markdown files directly to `rajuuddanti/Expiry` on GitHub.
+User prefers direct, informal “bro” communication and concrete step-by-step actions. “Push the handoff .md files” means commit Markdown files directly to the requested GitHub repository/branch.
