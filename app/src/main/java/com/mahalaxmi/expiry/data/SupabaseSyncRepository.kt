@@ -9,13 +9,57 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Imports public.MASTER only. Expiry entries remain local and are exported by the user. */
+/** Imports public.MASTER and uploads explicitly selected local expiry records to the dedicated upload table. */
 class SupabaseSyncRepository(context: Context, private val dao: ExpiryDao) {
     private val appContext = context.applicationContext
     private val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
     private val apiKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY.trim()
 
     data class SyncResult(val productsUpdated: Int, val message: String)
+    data class UploadResult(val uploaded: Int, val message: String)
+
+    /**
+     * Uploads pending local rows to public.expiry_entry_uploads.
+     * The stable local UUID is the conflict key, so retries are idempotent.
+     * A row is marked SYNCED only after the server accepts the whole batch.
+     */
+    suspend fun uploadPendingEntries(): UploadResult = withContext(Dispatchers.IO) {
+        check(baseUrl.startsWith("https://")) { "Supabase URL is not configured." }
+        check(apiKey.isNotBlank()) { "Supabase publishable key is not configured." }
+        val pending = dao.getPendingEntries()
+        if (pending.isEmpty()) return@withContext UploadResult(0, "No pending expiry entries to upload.")
+
+        var uploaded = 0
+        for (batch in pending.chunked(100)) {
+            val payload = JSONArray()
+            batch.forEach { entry ->
+                payload.put(JSONObject().apply {
+                    put("id", entry.id)
+                    put("store_name", entry.store)
+                    put("skucode", entry.skuCode)
+                    put("skuname", entry.productName)
+                    put("ean", entry.scannedCode)
+                    put("qty", entry.quantity)
+                    put("expirydate", entry.expiryDate)
+                    put("is_deleted", entry.deletedAt != null)
+                    put("created_at", entry.createdAt)
+                    put("deleted_at", entry.deletedAt ?: JSONObject.NULL)
+                    put("session_start", entry.sessionStart)
+                })
+            }
+            execute(
+                "POST",
+                "/rest/v1/expiry_entry_uploads?on_conflict=id",
+                payload.toString(),
+                apiKey,
+                "resolution=merge-duplicates,return=minimal",
+                null
+            )
+            dao.markEntriesSynced(batch.map { it.id })
+            uploaded += batch.size
+        }
+        UploadResult(uploaded, "Uploaded $uploaded expiry record(s) to Supabase.")
+    }
 
     data class ReturnRule(
         val ruleType: String,
