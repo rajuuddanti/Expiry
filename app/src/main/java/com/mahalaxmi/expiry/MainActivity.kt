@@ -166,6 +166,7 @@ class MainActivity : ComponentActivity() {
             var store by remember { mutableStateOf(prefs.getString("store", "") ?: "") }
             var storeDraft by remember { mutableStateOf("") }
             var storePinInput by remember { mutableStateOf("") }
+            var storePinError by remember { mutableStateOf("") }
             var showStorePinDialog by remember { mutableStateOf(false) }
             var showStoreNameDialog by remember { mutableStateOf(false) }
             var categoryMismatchPending by remember { mutableStateOf(false) }
@@ -265,11 +266,12 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 if (showStorePinDialog) {
                     AlertDialog(
-                        onDismissRequest = { showStorePinDialog = false; storePinInput = "" },
+                        onDismissRequest = { showStorePinDialog = false; storePinInput = ""; storePinError = "" },
                         title = { Text("Authorize store change") },
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Enter the PIN to change the store name.")
+                                if (storePinError.isNotBlank()) Text(storePinError, color = MahalaxmiRed)
                                 OutlinedTextField(
                                     value = storePinInput,
                                     onValueChange = { storePinInput = it.filter(Char::isDigit).take(4) },
@@ -284,15 +286,16 @@ class MainActivity : ComponentActivity() {
                                 if (storePinInput == "3331") {
                                     storeDraft = store
                                     storePinInput = ""
+                                    storePinError = ""
                                     showStorePinDialog = false
                                     showStoreNameDialog = true
                                 } else {
                                     storePinInput = ""
-                                    message = "Incorrect PIN. Store name was not changed."
+                                    storePinError = "Incorrect PIN. Try again."
                                 }
                             }) { Text("CONTINUE", color = MahalaxmiRed) }
                         },
-                        dismissButton = { TextButton(onClick = { showStorePinDialog = false; storePinInput = "" }) { Text("CANCEL") } }
+                        dismissButton = { TextButton(onClick = { showStorePinDialog = false; storePinInput = ""; storePinError = "" }) { Text("CANCEL") } }
                     )
                 }
                 if (showStoreNameDialog) {
@@ -704,7 +707,7 @@ class MainActivity : ComponentActivity() {
                                         singleLine = true
                                     )
                                     OutlinedButton(
-                                        onClick = { storePinInput = ""; showStorePinDialog = true },
+                                        onClick = { storePinInput = ""; storePinError = ""; showStorePinDialog = true },
                                         modifier = Modifier.fillMaxWidth()
                                     ) { Text("CHANGE STORE NAME (PIN REQUIRED)") }
                                 }
