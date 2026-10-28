@@ -161,6 +161,9 @@ class MainActivity : ComponentActivity() {
             val syncRepository = remember { SupabaseSyncRepository(applicationContext, dao) }
             var syncMessage by remember { mutableStateOf("Not synced yet") }
             var isSyncing by remember { mutableStateOf(false) }
+            var syncCompleted by remember { mutableIntStateOf(0) }
+            var syncTotal by remember { mutableIntStateOf(0) }
+            var syncPhase by remember { mutableStateOf("") }
             var isUploading by remember { mutableStateOf(false) }
             var uploadMessage by remember { mutableStateOf("Expiry entries have not been uploaded yet.") }
             var store by remember { mutableStateOf(prefs.getString("store", "") ?: "") }
@@ -679,17 +682,42 @@ class MainActivity : ComponentActivity() {
                                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                             Text("SUPABASE SYNC", fontWeight = FontWeight.Bold, color = MahalaxmiRed)
                                             Text(syncMessage, fontSize = 13.sp)
+                                            if (isSyncing || syncTotal > 0) {
+                                                val progress = if (syncTotal > 0) (syncCompleted.toFloat() / syncTotal.toFloat()).coerceIn(0f, 1f) else 0f
+                                                LinearProgressIndicator(
+                                                    progress = { progress },
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    color = MahalaxmiRed
+                                                )
+                                                Text(
+                                                    if (syncTotal > 0) "$syncPhase: ${syncCompleted.coerceAtMost(syncTotal)} / $syncTotal rows  •  ${(progress * 100).toInt()}%"
+                                                    else syncPhase,
+                                                    fontSize = 12.sp,
+                                                    color = Color.Gray
+                                                )
+                                            }
                                             Button(
                                                 onClick = {
                                                     if (!isSyncing) {
                                                         scope.launch {
                                                             isSyncing = true
-                                                            syncMessage = "Importing product master from Supabase… expiry entries stay on this device."
+                                                            syncCompleted = 0
+                                                            syncTotal = 0
+                                                            syncPhase = "Connecting to Supabase…"
+                                                            syncMessage = "Importing product master… expiry entries stay on this device."
                                                             try {
-                                                                val result = syncRepository.sync()
+                                                                val result = syncRepository.sync { progress ->
+                                                                    syncCompleted = progress.completed
+                                                                    syncTotal = progress.total
+                                                                    syncPhase = progress.phase
+                                                                }
                                                                 syncMessage = result.message
+                                                                syncPhase = "Complete"
+                                                                syncCompleted = result.productsUpdated
+                                                                syncTotal = result.productsUpdated
                                                             } catch (error: Exception) {
                                                                 syncMessage = error.message ?: "Sync failed. Check internet and Supabase configuration."
+                                                                syncPhase = "Sync failed"
                                                             } finally {
                                                                 isSyncing = false
                                                             }
