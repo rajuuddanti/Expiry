@@ -17,6 +17,37 @@ class SupabaseSyncRepository(context: Context, private val dao: ExpiryDao) {
 
     data class SyncResult(val productsUpdated: Int, val message: String)
 
+    data class ReturnRule(
+        val ruleType: String,
+        val matchValue: String,
+        val returnDays: Int,
+        val priority: Int,
+        val note: String?
+    )
+
+    /** Reads active category and brand return rules. Does not modify MASTER or expiry entries. */
+    suspend fun fetchReturnRules(): List<ReturnRule> = withContext(Dispatchers.IO) {
+        check(baseUrl.startsWith("https://")) { "Supabase URL is not configured." }
+        check(apiKey.isNotBlank()) { "Supabase publishable key is not configured." }
+        val rows = requestArray(
+            "GET",
+            "/rest/v1/expiry_return_rules?select=rule_type,match_value,return_days_before_expiry,priority,note&is_active=eq.true&order=priority.desc,match_value.asc",
+            apiKey,
+            "0-999"
+        )
+        buildList {
+            for (i in 0 until rows.length()) {
+                val row = rows.getJSONObject(i)
+                val type = row.optString("rule_type").trim().lowercase()
+                val value = row.optString("match_value").trim()
+                val days = row.optInt("return_days_before_expiry", -1)
+                if ((type == "category" || type == "brand") && value.isNotBlank() && days >= 0) {
+                    add(ReturnRule(type, value, days, row.optInt("priority", 0), row.optString("note").takeIf { it.isNotBlank() && it != "null" }))
+                }
+            }
+        }
+    }
+
     suspend fun sync(): SyncResult = withContext(Dispatchers.IO) {
         check(baseUrl.startsWith("https://")) { "Supabase URL is not configured. Set SUPABASE_URL in local.properties." }
         check(apiKey.isNotBlank()) { "Supabase publishable key is not configured. Set SUPABASE_PUBLISHABLE_KEY in local.properties." }
