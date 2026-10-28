@@ -1,6 +1,9 @@
 package com.mahalaxmi.expiry
 
 import android.os.Bundle
+import android.content.Intent
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -38,17 +41,28 @@ import java.time.format.DateTimeFormatter
 
 private val MahalaxmiRed = Color(0xFFB71C1C)
 private val IndiaZone = ZoneId.of("Asia/Kolkata")
-private val stores = listOf(
-    "Dharmaram", "Gharshakurthy", "Choppadandi", "Vidya Nagar", "Mallial",
-    "Pegadapally (Old)", "Kapuwada", "Pegadapally (New)", "Burugupally",
-    "Keshavapatnam", "Gangadhara", "Koheda", "Ellanthakunta",
-    "Gangadhara New", "Gopalrao Pet", "Vemulawada"
-)
-
 private enum class AppScreen { Scan, Lookup, History, Settings }
 
 class MainActivity : ComponentActivity() {
     private var scannedValue by mutableStateOf("")
+    private fun shareCsv(entries: List<ExpiryEntryEntity>) {
+        fun escape(value: String): String = "\"" + value.replace("\"", "\"\"").replace("\\n", " ") + "\""
+        val header = listOf("Store", "SKU code", "SKU name", "Scanned code", "QTY", "Expiry date")
+        val rows = entries.map { listOf(it.store, it.skuCode, it.productName, it.scannedCode, it.quantity.toString(), it.expiryDate) }
+        val csv = (listOf(header) + rows).joinToString("\r\n") { row -> row.joinToString(",") { escape(it) } }
+        val dir = File(cacheDir, "exports").apply { mkdirs() }
+        val file = File(dir, "expiry_check_${LocalDate.now(IndiaZone)}.csv")
+        file.writeText(csv, Charsets.UTF_8)
+        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/csv"
+            putExtra(Intent.EXTRA_SUBJECT, "Mahalaxmi Expiry Check")
+            putExtra(Intent.EXTRA_TEXT, "Expiry check export attached.")
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(intent, "Share expiry CSV"))
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val prefs = getSharedPreferences("expiry_manager", MODE_PRIVATE)
@@ -62,7 +76,7 @@ class MainActivity : ComponentActivity() {
         val initialSync = OneTimeWorkRequestBuilder<ExpirySyncWorker>()
             .setConstraints(networkConstraints)
             .build()
-        val periodicSync = PeriodicWorkRequestBuilder<ExpirySyncWorker>(15, TimeUnit.MINUTES)
+        val periodicSync = PeriodicWorkRequestBuilder<ExpirySyncWorker>(24, TimeUnit.HOURS)
             .setConstraints(networkConstraints)
             .build()
         WorkManager.getInstance(applicationContext).enqueueUniqueWork(
@@ -241,9 +255,9 @@ class MainActivity : ComponentActivity() {
                                                         ExpiryEntryEntity(
                                                             id = java.util.UUID.randomUUID().toString(),
                                                             store = store,
-                                                            skuCode = code.trim(),
+                                                            skuCode = (runCatching { dao.findProductByScanCode(code.trim()) }.getOrNull() ?: runCatching { dao.findProductBySku(code.trim()) }.getOrNull())?.skuCode ?: code.trim(),
                                                             productName = name.trim(),
-                                                            scannedCode = ean.trim().ifBlank { code.trim() },
+                                                            scannedCode = code.trim(),
                                                             quantity = q,
                                                             expiryDate = expiry,
                                                             sessionStart = session,
@@ -251,7 +265,7 @@ class MainActivity : ComponentActivity() {
                                                         )
                                                     )
                                                     code = ""; name = ""; ean = ""; qty = "1"
-                                                    message = "Entry saved offline. It will remain on this device until synced."
+                                                    message = "Entry saved on this device only."
                                                 }
                                             }
                                         },
@@ -305,6 +319,7 @@ class MainActivity : ComponentActivity() {
                                 Column(Modifier.fillMaxSize().padding(16.dp)) {
                                     Text("Entry History", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                                     Text("Recent entries: ${entries.size}", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
+                                    Button(onClick = { shareCsv(entries) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text("EXPORT CSV / SHARE") }
                                     if (entries.isEmpty()) {
                                         Text("No entries yet. Saved entries will appear here.")
                                     } else {
@@ -314,7 +329,8 @@ class MainActivity : ComponentActivity() {
                                                     Column(Modifier.padding(12.dp)) {
                                                         Text(item.productName, fontWeight = FontWeight.Bold)
                                                         Text("Store: ${item.store}")
-                                                        Text("SKU: ${item.skuCode}    Scanned: ${item.scannedCode}")
+                                                        Text("SKU code: ${item.skuCode}")
+                                                        Text("Scanned code: ${item.scannedCode}")
                                                         Text("Qty: ${item.quantity}    Expiry: ${item.expiryDate}")
                                                         TextButton(onClick = { scope.launch { dao.softDeleteEntry(item.id, LocalDateTime.now(IndiaZone).atZone(IndiaZone).toOffsetDateTime().toString()) } }) {
                                                             Text("Delete entry", color = MahalaxmiRed)
@@ -330,7 +346,7 @@ class MainActivity : ComponentActivity() {
                             AppScreen.Settings -> {
                                 Column(Modifier.fillMaxSize().padding(16.dp)) {
                                     Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                                    Text("Cloud sync and device store", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
+                                    Text("Product master import and local data", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
                                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                             Text("SUPABASE SYNC", fontWeight = FontWeight.Bold, color = MahalaxmiRed)
@@ -340,7 +356,7 @@ class MainActivity : ComponentActivity() {
                                                     if (!isSyncing) {
                                                         scope.launch {
                                                             isSyncing = true
-                                                            syncMessage = "Syncing product master and pending entries…"
+                                                            syncMessage = "Importing product master from Supabase… expiry entries stay on this device."
                                                             try {
                                                                 val result = syncRepository.sync()
                                                                 syncMessage = result.message
@@ -360,22 +376,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     }
-                                    Text("Select the store this device belongs to.", color = Color.Gray, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
-                                    LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        items(stores) { s ->
-                                            OutlinedButton(
-                                                onClick = {
-                                                    store = s
-                                                    prefs.edit().putString("store", s).apply()
-                                                    message = "Store changed to $s"
-                                                },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                colors = if (store == s) ButtonDefaults.outlinedButtonColors(contentColor = MahalaxmiRed) else ButtonDefaults.outlinedButtonColors()
-                                            ) {
-                                                Text(if (store == s) "✓  $s" else s)
-                                            }
-                                        }
-                                    }
+                                    OutlinedTextField(value = store, onValueChange = { store = it; prefs.edit().putString("store", it).apply() }, label = { Text("Store name (manual entry)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                                 }
                             }
                         }
