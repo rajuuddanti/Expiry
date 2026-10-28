@@ -451,61 +451,49 @@ class MainActivity : ComponentActivity() {
                             }
 
                             AppScreen.Lookup -> {
-                                Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Text("SKU Lookup", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                                    Text("TODAY'S CATEGORY LIST • ${LocalDate.now(IndiaZone)}", fontWeight = FontWeight.Bold, color = MahalaxmiRed)
-                                    if (todaySchedule.isEmpty()) {
-                                        Text("No categories are scheduled for today.", color = Color.Gray, fontSize = 12.sp)
-                                    } else {
-                                        todaySchedule.forEach { row ->
-                                            Text("${row.baseCategory} • ${todayCategoryProducts.count { normalizedRuleName(it.category.orEmpty()) == normalizedRuleName(row.baseCategory) }} SKU(s)", fontWeight = FontWeight.SemiBold)
-                                        }
-                                        if (todayCategoryProducts.isEmpty()) {
-                                            Text("No products matched today's scheduled categories in the locally synced master.", color = Color.Gray, fontSize = 12.sp)
-                                        } else {
-                                            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                items(todayCategoryProducts, key = { "today-${it.rowId}" }) { product ->
-                                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp)) {
-                                                        Column(Modifier.padding(8.dp)) {
-                                                            Text(product.skuName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                                            Text("SKU: ${product.skuCode} • ${product.category.orEmpty()}", fontSize = 11.sp, color = Color.Gray)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
+                                val filteredCategoryProducts = remember(todayCategoryProducts, lookupQuery) {
+                                    if (lookupQuery.isBlank()) todayCategoryProducts
+                                    else todayCategoryProducts.filter { product ->
+                                        product.skuName.contains(lookupQuery, ignoreCase = true) ||
+                                            product.skuCode.contains(lookupQuery, ignoreCase = true) ||
+                                            product.scanCode.contains(lookupQuery, ignoreCase = true)
                                     }
-                                    Divider()
-                                    Text("SEARCH A PARTICULAR PRODUCT", fontWeight = FontWeight.Bold)
-                                    Text("Search MASTER by product name, SKU code, or EAN/barcode. SKU and EAN codes share SkuCode; duplicate rows are preserved.",
-                                        color = Color.Gray, fontSize = 12.sp)
+                                }
+                                Column(
+                                    Modifier.fillMaxSize().padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    todaySchedule.forEach { row ->
+                                        Text(row.baseCategory, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                    }
                                     OutlinedTextField(
                                         value = lookupQuery,
-                                        onValueChange = { value ->
-                                            lookupQuery = value
-                                            scope.launch {
-                                                if (value.isBlank()) {
-                                                    lookupResults = emptyList()
-                                                    lookupMessage = "Search by product name, SKU code, or EAN/barcode."
-                                                } else {
-                                                    lookupResults = runCatching { dao.searchProducts(value.trim()) }.getOrDefault(emptyList())
-                                                    lookupMessage = if (lookupResults.isEmpty()) "No matching master rows. Check sync or verify this code manually." else "${lookupResults.size} result(s), in master source order."
-                                                }
-                                            }
-                                        },
-                                        label = { Text("Product name / SKU / EAN") },
+                                        onValueChange = { lookupQuery = it },
+                                        label = { Text("SKU search") },
                                         modifier = Modifier.fillMaxWidth(),
                                         singleLine = true
                                     )
-                                    Text(lookupMessage, color = Color.Gray, fontSize = 12.sp)
-                                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        items(lookupResults, key = { it.rowId }) { product ->
-                                            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)) {
-                                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                                    Text(product.skuName, fontWeight = FontWeight.Bold)
-                                                    Text("SKU (FCFS): ${product.skuCode}")
-                                                    Text("Matched master code: ${product.scanCode}")
-                                                    Text("Category: ${product.category ?: "Pending verification"}")
+                                    if (filteredCategoryProducts.isEmpty()) {
+                                        Text(
+                                            if (todayCategoryProducts.isEmpty()) "No products in today's category."
+                                            else "No matching products.",
+                                            color = Color.Gray,
+                                            fontSize = 13.sp
+                                        )
+                                    } else {
+                                        LazyColumn(
+                                            modifier = Modifier.fillMaxSize(),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            items(filteredCategoryProducts, key = { "category-${it.rowId}" }) { product ->
+                                                Card(
+                                                    Modifier.fillMaxWidth(),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                ) {
+                                                    Column(Modifier.padding(10.dp)) {
+                                                        Text(product.skuName, fontWeight = FontWeight.SemiBold)
+                                                        Text(product.skuCode, fontSize = 12.sp, color = Color.Gray)
+                                                    }
                                                 }
                                             }
                                         }
