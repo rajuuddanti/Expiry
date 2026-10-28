@@ -548,12 +548,14 @@ class MainActivity : ComponentActivity() {
                                                 Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                                                     Column(Modifier.padding(12.dp)) {
                                                         Text(item.productName, fontWeight = FontWeight.Bold)
-                                                        Text("Store: ${item.store}")
                                                         Text("SKU code: ${item.skuCode}")
                                                         Text("Ean/SKU Scanned: ${item.scannedCode}")
-                                                        Text("Qty: ${item.quantity}    Expiry: ${item.expiryDate}")
+                                                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                            Text("Qty: ${item.quantity}", color = MahalaxmiRed, fontWeight = FontWeight.Bold)
+                                                            Spacer(Modifier.width(12.dp))
+                                                            Text("Expiry: ${item.expiryDate}")
+                                                        }
                                                         Text("Category: ${item.category.ifBlank { "Pending verification" }}")
-                                                        Text("Entered: ${item.createdAt}")
                                                         TextButton(onClick = { pendingDelete = item }) {
                                                             Text("Delete entry", color = MahalaxmiRed)
                                                         }
