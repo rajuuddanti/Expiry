@@ -149,6 +149,8 @@ class MainActivity : ComponentActivity() {
             val syncRepository = remember { SupabaseSyncRepository(applicationContext, dao) }
             var syncMessage by remember { mutableStateOf("Not synced yet") }
             var isSyncing by remember { mutableStateOf(false) }
+            var isUploading by remember { mutableStateOf(false) }
+            var uploadMessage by remember { mutableStateOf("Expiry entries have not been uploaded yet.") }
             var store by remember { mutableStateOf(prefs.getString("store", "") ?: "") }
             var screen by remember { mutableStateOf(AppScreen.Scan) }
             var code by remember { mutableStateOf("") }
@@ -447,6 +449,28 @@ class MainActivity : ComponentActivity() {
                                     Text("Entry History", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                                     Text("Recent entries: ${entries.size}", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
                                     Button(onClick = { shareCsv(entries) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text("EXPORT CSV / SHARE") }
+                                    Button(
+                                        onClick = {
+                                            if (!isUploading) {
+                                                scope.launch {
+                                                    isUploading = true
+                                                    uploadMessage = "Uploading pending expiry records to Supabase…"
+                                                    try {
+                                                        val result = syncRepository.uploadPendingEntries()
+                                                        uploadMessage = result.message
+                                                    } catch (error: Exception) {
+                                                        uploadMessage = "Upload failed; records remain pending. ${error.message ?: "Check internet, table and permissions."}"
+                                                    } finally {
+                                                        isUploading = false
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        enabled = !isUploading,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF455A64))
+                                    ) { Text(if (isUploading) "UPLOADING…" else "UPLOAD TO SUPABASE") }
+                                    Text(uploadMessage, color = if (uploadMessage.startsWith("Upload failed")) MahalaxmiRed else Color.Gray, fontSize = 12.sp)
                                     if (entries.isEmpty()) {
                                         Text("No entries yet. Saved entries will appear here.")
                                     } else {
