@@ -100,8 +100,18 @@ class MainActivity : ComponentActivity() {
     private var scannedValue by mutableStateOf("")
     private fun shareCsv(entries: List<ExpiryEntryEntity>) {
         fun escape(value: String): String = "\"" + value.replace("\"", "\"\"").replace("\\n", " ") + "\""
-        val header = listOf("Store", "SKU code", "SKU name", "Scanned code", "QTY", "Expiry date")
-        val rows = entries.map { listOf(it.store, it.skuCode, it.productName, it.scannedCode, it.quantity.toString(), it.expiryDate) }
+        fun parsedTimestamp(value: String): java.time.OffsetDateTime? =
+            runCatching { java.time.OffsetDateTime.parse(value) }.getOrNull()
+        val header = listOf("Location", "SKU Code", "SKU Name", "Ean/SKU Scanned", "Qty", "Expiry Date", "Category", "Date", "Time")
+        val rows = entries.map { entry ->
+            val timestamp = parsedTimestamp(entry.createdAt)
+            listOf(
+                entry.store, entry.skuCode, entry.productName, entry.scannedCode,
+                entry.quantity.toString(), entry.expiryDate, entry.category,
+                timestamp?.toLocalDate()?.toString() ?: entry.createdAt.take(10),
+                timestamp?.toLocalTime()?.withNano(0)?.toString() ?: ""
+            )
+        }
         val csv = (listOf(header) + rows).joinToString("\r\n") { row -> row.joinToString(",") { escape(it) } }
         val dir = File(cacheDir, "exports").apply { mkdirs() }
         val file = File(dir, "expiry_check_${LocalDate.now(IndiaZone)}.csv")
@@ -387,6 +397,8 @@ class MainActivity : ComponentActivity() {
                                                             skuCode = (runCatching { dao.findProductByScanCode(code.trim()) }.getOrNull() ?: runCatching { dao.findProductBySku(code.trim()) }.getOrNull())?.skuCode ?: code.trim(),
                                                             productName = name.trim(),
                                                             scannedCode = code.trim(),
+                                                            category = (runCatching { dao.findProductByScanCode(code.trim()) }.getOrNull()
+                                                                ?: runCatching { dao.findProductBySku(code.trim()) }.getOrNull())?.category.orEmpty(),
                                                             quantity = q,
                                                             expiryDate = expiry,
                                                             sessionStart = session,
@@ -394,7 +406,7 @@ class MainActivity : ComponentActivity() {
                                                         )
                                                     )
                                                     code = ""; name = ""; ean = ""; qty = "1"
-                                                    message = "Entry saved on this device only."
+                                                    message = "Entry saved locally. Category captured for export and upload."
                                                 }
                                             }
                                         },
@@ -481,8 +493,10 @@ class MainActivity : ComponentActivity() {
                                                         Text(item.productName, fontWeight = FontWeight.Bold)
                                                         Text("Store: ${item.store}")
                                                         Text("SKU code: ${item.skuCode}")
-                                                        Text("Scanned code: ${item.scannedCode}")
+                                                        Text("Ean/SKU Scanned: ${item.scannedCode}")
                                                         Text("Qty: ${item.quantity}    Expiry: ${item.expiryDate}")
+                                                        Text("Category: ${item.category.ifBlank { "Pending verification" }}")
+                                                        Text("Entered: ${item.createdAt}")
                                                         TextButton(onClick = { scope.launch { dao.softDeleteEntry(item.id, LocalDateTime.now(IndiaZone).atZone(IndiaZone).toOffsetDateTime().toString()) } }) {
                                                             Text("Delete entry", color = MahalaxmiRed)
                                                         }
