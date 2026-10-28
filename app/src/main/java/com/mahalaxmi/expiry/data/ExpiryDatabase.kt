@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [ProductMasterEntity::class, ExpiryEntryEntity::class], version = 2, exportSchema = false)
+@Database(entities = [ProductMasterEntity::class, ExpiryEntryEntity::class], version = 3, exportSchema = false)
 abstract class ExpiryDatabase : RoomDatabase() {
     abstract fun expiryDao(): ExpiryDao
     companion object {
@@ -22,11 +22,16 @@ abstract class ExpiryDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_product_master_rowOrder ON product_master(rowOrder)")
             }
         }
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE expiry_entries ADD COLUMN category TEXT NOT NULL DEFAULT ''")
+            }
+        }
         @Volatile private var INSTANCE: ExpiryDatabase? = null
         fun getInstance(context: Context): ExpiryDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(context.applicationContext, ExpiryDatabase::class.java, "mahalaxmi_expiry.db")
-                    .addMigrations(MIGRATION_1_2).build().also { INSTANCE = it }
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { INSTANCE = it }
             }
     }
 }
