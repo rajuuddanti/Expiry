@@ -1,41 +1,51 @@
 # Implementation Status — Mahalaxmi Expiry Manager
 
-Last updated: 2026-10-26 (Asia/Kolkata)
+Last updated: 2026-10-28 (Asia/Kolkata)
 
-## Current work branch
+## Branch context
 
-`recovery/restore-ui-supabase`
+Current branch used for recent documentation/work: `feature/new-expiry-upload-table`. Branch histories have diverged; verify HEAD and source files before assuming all recorded commits are present.
 
-This is a separate recovery branch. `main`, `feature/room-offline-storage`, and the recovery baseline are not overwritten.
+## Recent changes recorded in the handoff
 
-## Implemented in this branch
+The prior session reported changes related to:
+- local-only expiry records in Room (no cloud upload of expiry entries);
+- CSV export/share through Android's share sheet;
+- FileProvider configuration for sharing;
+- SKU/EAN scan mapping with FCFS canonical SKU and separate raw scanned code;
+- master refresh interval changed to 24 hours.
 
-- Existing Scan, History, Settings UI and local Room storage are retained.
-- Added an HTTPS Supabase REST/Auth client using the publishable/anon key (not service-role credentials).
-- Added anonymous Auth session creation and refresh; anonymous sign-in must be enabled in Supabase Auth.
-- Added initial product-master download with 1,000-row paging and transactional replacement of only the local product master.
-- Added timestamp-based product-master delta refresh using `updated_at`.
-- Added pending expiry-entry upload using stable local UUIDs and conflict-safe upsert.
-- Soft-delete changes now re-enter the pending queue for synchronization.
-- Added Settings → Sync Now control and sync status/error feedback.
-- Added WorkManager startup sync plus periodic connected-network retry (minimum 15-minute interval).
-- Added a SQL migration for RLS policies and owner-scoped expiry-entry access.
-- Added setup and verification instructions in `docs/SUPABASE_ANDROID_SETUP.md`.
+Recorded commit IDs are listed in `docs/CURRENT_HANDOFF.md`. These notes are not proof that every commit is on the current branch or that the code compiles. Inspect actual source before relying on these statements.
 
-## Still required before this is considered working
+## Backend state reported by user
 
-- Apply migration `supabase/migrations/002_secure_android_sync.sql` in the actual Supabase project.
-- Enable Anonymous Sign-Ins in Supabase Auth.
-- Add the project's URL and publishable/anon key to the ignored root `local.properties`.
-- Build and run the app in Android Studio; this branch has not yet been build-verified by the assistant.
-- Test first-time product sync, delta sync, offline entry capture, upload retry, app restart, and soft-delete sync.
-- Verify WorkManager retry behavior on physical devices and after app restart.
-- Design a separately authenticated server-side path for shared all-store reporting. The Android app must never contain a service-role key.
+- `public.MASTER` contains product master data with `"SkuCode"`, `"SkuLongName"`, and `"Catg"`; 124,570 rows were reported after upload.
+- `public.expiry_return_rules` stores 30 category rules and 2 brand rules in one table.
+- Brand rules: HIMALAYA = 60 days; KELLOGGS = 30 days.
+- Obsolete cloud expiry-upload/device/security tables were reportedly removed.
 
-## Data safety notes
+These are historical user-reported results, not a fresh inspection of the user's Supabase project. Do not change Supabase config or claim live access.
 
-- SKU and scan codes remain TEXT so leading zeroes are preserved.
-- Product-master replacement is transactional and rejects an empty first-sync response, protecting the existing local cache.
-- Expiry entries remain in Room; a product refresh never clears them.
-- Expiry records are owner-scoped to the device's Supabase anonymous Auth user under the new RLS migration. This does not yet give an admin shared reporting access.
-- Do not treat code committed to GitHub as a successful build or verified live Supabase integration until the listed setup and tests pass.
+## Not yet verified / not yet confirmed implemented
+
+- Android debug build and runtime behavior.
+- End-to-end direct SKU and EAN lookup against the current `MASTER` schema.
+- Offline persistence across app restart and local CSV sharing.
+- Actual 24-hour refresh behavior and error handling.
+- Android fetching/caching `expiry_return_rules`.
+- Return Rules icon/popup for today's scheduled categories plus Himalaya/Kellogg's.
+- Effective category return-window formula.
+- Continuous schedule generation after 31 December 2027.
+
+Do not describe these items as implemented until source changes are committed and build/tests provide evidence.
+
+## Target behavior
+
+Read `docs/CURRENT_HANDOFF.md` and `docs/EXPIRY_RETURN_RULES_AND_SCHEDULE.md` for current requirements. In short: keep expiry records local, use one return-rule table for categories and brands, prioritize brand overrides, show today's scheduled category return windows in a popup, preserve the supplied calendar through 2027, and continue the exact schedule rotation beyond 2027 without exceeding two categories per day.
+
+## Safety constraints
+
+- Never put a Supabase service-role key in the Android app.
+- Do not alter `public.MASTER` schema or Supabase URL/key configuration unless explicitly asked.
+- Do not reintroduce cloud expiry-entry uploads or old device/security tables without explicit user approval.
+- A GitHub commit is not a successful build or test.
