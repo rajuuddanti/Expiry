@@ -1,45 +1,55 @@
-# Implementation plan
+# Implementation Plan — Mahalaxmi Expiry Manager
 
-## Product master data and daily sync
-- [x] Two production business tables intended: product_master and expiry_entries
-- [x] No category field/table; one scan_code lookup handles SKU and EAN
-- [x] Text-only codes; pad digit-only codes shorter than 5 digits, preserve 5+ digits
-- [x] FCFS canonical SKU match for duplicate product names
-- [x] User selected daily staging -> validate -> compare -> publish (Option A)
-- [ ] Verify actual live schemas and RLS from user-run SQL results
-- [ ] Build staging validation for blanks, duplicate/conflicting scan codes and mapping errors
-- [ ] Build safe publish process that compares staging to existing master without clearing the published table first
-- [ ] Track a monotonically increasing master revision and retained changes, including removals
-- [ ] Add lightweight revision check and paginated delta retrieval for devices
-- [ ] Add full-snapshot fallback if a device's revision is too old for retained changes
-- [ ] Test add, update, removal, duplicate, and failed-validation cases
+Last updated: 2026-10-28 (Asia/Kolkata)
 
-## Android product master sync
-- [ ] Inspect actual Android source tree and build setup before implementation claims
-- [ ] First successful online launch downloads full master into Room
-- [ ] Persist locally applied master revision
-- [ ] Subsequent launches check revision only; if unchanged, fetch no master rows
-- [ ] If changed, download only changes since local revision
-- [ ] Apply each delta in a single Room transaction and advance local revision only after success
-- [ ] Offline start uses Room and retries later
-- [ ] Never clear local master before successful full/delta validation
-- [ ] Product master refresh never removes expiry history or unsynced expiry entries
-- [ ] Test interrupted download, retry, pagination, removals, offline mode, and unchanged revision
+Use `docs/CURRENT_HANDOFF.md` as the authoritative current handoff. Check the actual branch/source before marking any item complete.
 
-## Expiry app requirements
-- [ ] Store selection saved locally and editable in Settings
-- [ ] Camera barcode scanning and manual code entry
-- [ ] Exact lookup against product_master.scan_code
-- [ ] Autofill canonical SKU and product name
-- [ ] Quantity and calendar expiry picker
-- [ ] History session 3 PM IST to next day 3 PM
-- [ ] Room offline persistence and retryable expiry-entry sync
-- [ ] Soft delete manager corrections/deletions; never physically delete expiry records
-- [ ] Build and test on device before claiming readiness
+## Repository/build verification
+- [ ] Verify current branch HEAD and whether recorded recent commits are present.
+- [ ] Inspect current Android source tree and Gradle configuration.
+- [ ] Run a real debug build; record the actual result/log.
+- [ ] Install/run on a device and test scanning, local persistence, and CSV share before claiming readiness.
 
-## Security
-- [ ] No service-role key in APK
-- [ ] Confirm safe RLS and controlled access path for master revision/delta reads and expiry writes
-- [ ] Do not assume assistant has direct access to user's Supabase project
+## Product master and scan lookup
+- [ ] Verify actual `MASTER` query/API path and current row count from user-provided/live-authorized evidence.
+- [ ] Verify master refresh runs on intended 24-hour cadence and manual refresh works.
+- [ ] Verify offline lookup after a successful import.
+- [ ] Test direct SKU scan: canonical SKU and scanned code can match.
+- [ ] Test barcode/EAN scan: product name resolves, FCFS canonical SKU is selected, and raw scanned code is retained.
+- [ ] Test short-code padding (<5 digits to 5) and preserve 5+ digit codes as text.
+- [ ] Verify no master refresh clears local expiry entries.
 
-See docs/PRODUCT_MASTER_DAILY_SYNC.md for the detailed sync design.
+## Local expiry records and export
+- [ ] Confirm expiry entries are stored in Room, not cloud-uploaded.
+- [ ] Verify app restart and offline use preserve entries.
+- [ ] Verify CSV columns against current user requirement: Store, SKU code, SKU name, QTY; check whether Scanned code and Expiry date are also included.
+- [ ] Test share sheet with email and WhatsApp-compatible targets.
+- [ ] Verify store selection/PIN behavior and 3 PM rollover.
+
+## Return rules popup
+- [ ] Add active-rule model/repository for `public.expiry_return_rules`.
+- [ ] Read rules without modifying `public.MASTER` or Supabase config.
+- [ ] Add tappable Return Rules info icon on the main screen.
+- [ ] Popup shows categories scheduled for the current inspection date with configured/effective return days.
+- [ ] Popup always includes Himalaya — 60 days and Kellogg's — 30 days in a separate Brand Rules section.
+- [ ] Brand rules override category rules.
+- [ ] Calculate category effective days as `max(configured_return_days, schedule_interval_days)` once schedule interval logic is verified.
+- [ ] Keep configured rule values in Supabase unchanged.
+- [ ] Confirm whether brand rules are exempt from the schedule-day floor; until then, display them as fixed values.
+
+## Schedule and calendar
+- [ ] Inspect `SCHEDULER.csv` and existing code to capture exact category rotation and rollover rules.
+- [ ] Preserve supplied schedule dates from 2026-10-23 through 2027-12-31.
+- [ ] Ensure no more than two categories are assigned per day.
+- [ ] Implement continuation after 2027 from exact final schedule state; do not restart rotation arbitrarily.
+- [ ] Verify schedule never causes a product to miss its return window under the agreed effective-days formula.
+- [ ] Test month/year boundaries and leap-year dates.
+
+## Data/security constraints
+- [ ] Do not change Supabase URL/key config unless user explicitly asks.
+- [ ] Never put a service-role key in the APK.
+- [ ] Do not reintroduce cloud expiry-upload/device-registration/security tables without explicit user approval.
+- [ ] Verify actual RLS/access policies before claiming production safety.
+
+## Older tasks that may no longer apply
+- [ ] Historical product_master staging/publish and delta-sync design: re-evaluate before continuing because latest reported master table is `MASTER` and expiry entries are local-only.
