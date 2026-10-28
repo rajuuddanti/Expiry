@@ -26,6 +26,8 @@ interface ExpiryDao {
     suspend fun findFirstProductByName(name: String): ProductMasterEntity?
     @Query("SELECT * FROM product_master WHERE isActive = 1 AND (LOWER(skuName) LIKE '%' || LOWER(:query) || '%' OR scanCode LIKE '%' || :query || '%') ORDER BY rowOrder ASC LIMIT 100")
     suspend fun searchProducts(query: String): List<ProductMasterEntity>
+    @Query("SELECT * FROM product_master WHERE isActive = 1 AND UPPER(TRIM(COALESCE(category, ''))) IN (:categories) ORDER BY rowOrder ASC")
+    suspend fun getProductsForCategories(categories: List<String>): List<ProductMasterEntity>
     @Query("SELECT COUNT(*) FROM product_master WHERE isActive = 1")
     suspend fun activeProductCount(): Int
     @Insert(onConflict = OnConflictStrategy.REPLACE)
