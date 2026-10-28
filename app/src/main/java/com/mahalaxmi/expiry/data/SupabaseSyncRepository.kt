@@ -16,6 +16,7 @@ class SupabaseSyncRepository(context: Context, private val dao: ExpiryDao) {
     private val apiKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY.trim()
 
     data class SyncResult(val productsUpdated: Int, val message: String)
+    data class SyncProgress(val completed: Int, val total: Int, val phase: String)
     data class UploadResult(val uploaded: Int, val message: String)
 
     /**
@@ -95,17 +96,20 @@ class SupabaseSyncRepository(context: Context, private val dao: ExpiryDao) {
         }
     }
 
-    suspend fun sync(): SyncResult = withContext(Dispatchers.IO) {
+    suspend fun sync(onProgress: (SyncProgress) -> Unit = {}): SyncResult = withContext(Dispatchers.IO) {
         check(baseUrl.startsWith("https://")) { "Supabase URL is not configured. Set SUPABASE_URL in local.properties." }
         check(apiKey.isNotBlank()) { "Supabase publishable key is not configured. Set SUPABASE_PUBLISHABLE_KEY in local.properties." }
-        val count = downloadProductMaster(apiKey)
+        val count = downloadProductMaster(apiKey, onProgress)
+        onProgress(SyncProgress(count, count, "Complete"))
         SyncResult(count, "Import complete: $count master rows refreshed. Expiry entries remain on this device only.")
     }
 
-    private suspend fun downloadProductMaster(accessToken: String): Int {
+    private suspend fun downloadProductMaster(accessToken: String, onProgress: (SyncProgress) -> Unit): Int {
         val raw = mutableListOf<ProductMasterEntity>()
         var offset = 0
         val pageSize = 1000
+        val totalRows = fetchMasterRowCount(accessToken)
+        onProgress(SyncProgress(0, totalRows, "Downloading master"))
         while (true) {
             // Do not sort by SkuCode: FCFS depends on the stacked source order.
             val rows = requestArray("GET", "/rest/v1/MASTER?select=SkuCode,SkuLongName,Catg",
@@ -120,6 +124,7 @@ class SupabaseSyncRepository(context: Context, private val dao: ExpiryDao) {
                         category = category, rowOrder = raw.size, isActive = true)
                 }
             }
+            onProgress(SyncProgress(raw.size, totalRows, "Downloading master"))
             if (rows.length() < pageSize) break
             offset += pageSize
         }
@@ -134,11 +139,41 @@ class SupabaseSyncRepository(context: Context, private val dao: ExpiryDao) {
             val key = row.skuName.trim().lowercase()
             if (key.isNotEmpty() && key !in firstSkuByName) firstSkuByName[key] = row.scanCode
         }
+        onProgress(SyncProgress(raw.size, totalRows, "Preparing local master"))
         val mapped = raw.map { row ->
             row.copy(skuCode = firstSkuByName[row.skuName.trim().lowercase()] ?: row.scanCode)
         }
         dao.replaceProductMaster(mapped)
+        onProgress(SyncProgress(mapped.size, totalRows, "Saving local master"))
         return mapped.size
+    }
+
+    private fun fetchMasterRowCount(accessToken: String): Int {
+        val connection = (URL(baseUrl + "/rest/v1/MASTER?select=SkuCode").openConnection() as HttpURLConnection).apply {
+            requestMethod = "HEAD"
+            connectTimeout = 15000
+            readTimeout = 30000
+            setRequestProperty("apikey", apiKey)
+            setRequestProperty("Authorization", "Bearer $accessToken")
+            setRequestProperty("Prefer", "count=exact")
+            setRequestProperty("Range-Unit", "items")
+            setRequestProperty("Range", "0-0")
+        }
+        try {
+            val status = connection.responseCode
+            if (status !in 200..299) {
+                val stream = connection.errorStream
+                val details = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                throw IllegalStateException("Could not count master rows ($status): ${details.take(300)}")
+            }
+            val contentRange = connection.getHeaderField("Content-Range").orEmpty()
+            val total = contentRange.substringAfterLast("/", "").toIntOrNull()
+            if (total == null) throw IllegalStateException("Supabase did not return the master row count.")
+            if (total == 0) throw IllegalStateException("Supabase MASTER is empty. Upload the CSV, then sync again.")
+            return total
+        } finally {
+            connection.disconnect()
+        }
     }
 
     private fun requestJson(method: String, path: String, body: JSONObject?, bearer: String, prefer: String? = null): JSONObject {
