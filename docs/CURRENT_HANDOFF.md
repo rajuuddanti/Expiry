@@ -46,8 +46,8 @@ There is no separate EAN column in this master. SKU and EAN/barcode codes are st
 - Resolve product name from the locally cached master.
 - For an EAN row, map to the first matching SKU by product-name source order (FCFS); keep raw scanned value separate from canonical SKU.
 - Store name is entered manually and locked behind PIN `3331` when changed; store mapping/IP history is for later analysis.
-- Expiry entries should be stored locally in Room and remain available offline.
-- The user does not want cloud upload of expiry entries; export/share CSV instead.
+- Expiry entries are stored locally in Room and remain available offline. User has now approved optional manual upload to a dedicated Supabase table; CSV export remains available.
+- Updated decision (2026-10-28): keep CSV export/share and add an explicit manual Supabase upload to a new dedicated `public.expiry_entry_uploads` table. This must not modify `MASTER` or `expiry_return_rules`.
 - CSV export columns requested most recently: Store | SKU code | SKU name | QTY. A later implemented export was described as including Scanned code and Expiry date too; inspect actual source before asserting exact headers.
 - Device history rolls over at 3 PM local device time; old entries should not be deleted from Supabase because the current decision is that expiry entries are local-only. Keep prior session/history behavior consistent with the actual code and verify before modifying.
 
@@ -73,6 +73,15 @@ Category rule seed values and popup/schedule requirements are in `docs/EXPIRY_RE
 - Preserve original values in Supabase; calculate effective values in the app.
 - Brand rules exemption from the schedule-day floor remains unconfirmed; safest default is to display brand overrides as fixed 60/30 days unless user confirms otherwise.
 - The Return Rules popup, effective-window logic, and schedule continuation beyond 2027 are design requirements, not verified implementations.
+
+## Expiry upload implementation (2026-10-28)
+
+- `SupabaseSyncRepository.uploadPendingEntries()` uploads pending Room entries in batches of 100 to `public.expiry_entry_uploads` using stable local UUID `id` as the upsert conflict key.
+- Local rows are marked `SYNCED` only after the corresponding batch is accepted; failures remain pending for retry.
+- History has a separate **UPLOAD TO SUPABASE** action; CSV export remains separate.
+- SQL migration is in `supabase/migrations/20261028_create_expiry_entry_uploads.sql`. It has been committed to GitHub but has NOT been applied to Supabase; the Supabase connector could not establish an eligible account link. Run the migration in the intended Supabase project before testing uploads.
+- This upload design uses the existing publishable/anon key and RLS policies; it is not a substitute for store authentication. Do not add service-role credentials to the APK.
+- Build and runtime test results must be verified separately; a GitHub commit is not a successful build.
 
 ## Recent repository work reported in the prior handoff
 
