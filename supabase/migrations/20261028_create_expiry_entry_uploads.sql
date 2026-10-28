@@ -43,4 +43,12 @@ create policy "expiry upload retry update"
         and skuname <> '' and qty > 0
     );
 
+-- Upsert conflict handling needs access to the conflict key only. Do not grant SELECT on payload columns.
+drop policy if exists "expiry upload conflict key lookup" on public.expiry_entry_uploads;
+create policy "expiry upload conflict key lookup"
+    on public.expiry_entry_uploads
+    for select to anon, authenticated
+    using (true);
+
 grant insert, update on public.expiry_entry_uploads to anon, authenticated;
+grant select (id) on public.expiry_entry_uploads to anon, authenticated;
