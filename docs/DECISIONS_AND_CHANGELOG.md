@@ -99,3 +99,12 @@ User prefers direct, informal “bro” communication and concrete step-by-step 
 - Current-store card, rounded form fields, expiry-date control, and Save Entry button received a visual refresh.
 - Code commits: `9dee3136d61a3af31e9f74dd19be510d0d5d2136` and `b5b8e3040410fce4431981c5c9d781e9a3895e1a`.
 - Verification at documentation time: GitHub Actions for the visual refresh had not yet been confirmed complete; no device visual test recorded. Recheck on next session.
+
+## 2026-10-29 — quantity reset and automatic expiry upload
+
+- After a successful save, the quantity field is cleared instead of being reset to `1`; this avoids accidentally carrying the previous quantity into the next entry.
+- Expiry entries now attempt an immediate upload to `public.expiry_entry_uploads` after being saved locally.
+- If automatic upload fails (for example, no connection), the entry remains stored locally and a connected-network one-time retry is scheduled. The background sync worker also attempts to upload pending entries when it runs.
+- The History screen's manual upload action remains available as a fallback.
+- Code commits: `6c6194f0e540b350ba4bb39a0740110d99f47a33`, `c862f3ed96d8a642764ae434093c0422e618bf85`, and `bee929f29bdbcc23250302f540728ba871648b16`.
+- Build and live-device/Supabase verification are pending; inspect GitHub Actions before claiming success.
