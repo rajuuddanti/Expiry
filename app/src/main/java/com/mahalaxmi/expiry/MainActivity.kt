@@ -116,7 +116,23 @@ class MainActivity : ComponentActivity() {
         }
         val csv = (listOf(header) + rows).joinToString("\r\n") { row -> row.joinToString(",") { escape(it) } }
         val dir = File(cacheDir, "exports").apply { mkdirs() }
-        val file = File(dir, "expiry_check_${LocalDate.now(IndiaZone)}.csv")
+        fun filenamePart(value: String): String =
+            value.trim()
+                .replace(Regex("[^A-Za-z0-9]+"), "-")
+                .trim('-')
+                .ifBlank { "Unknown" }
+        val storeName = entries.firstOrNull()?.store ?: "Unknown-Store"
+        val categories = entries.map { it.category.trim() }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+        val categoryName = when (categories.size) {
+            0 -> "Uncategorised"
+            1 -> categories.first()
+            else -> "Multiple-Categories"
+        }
+        val exportDate = LocalDate.now(IndiaZone).format(DateTimeFormatter.ISO_DATE)
+        val fileName = "${filenamePart(storeName)}_${filenamePart(categoryName)}-$exportDate.csv"
+        val file = File(dir, fileName)
         file.writeText(csv, Charsets.UTF_8)
         val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply {
