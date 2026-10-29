@@ -47,3 +47,14 @@
 - Refined the expiry-date button and Save Entry button shapes.
 - Code commit: `b5b8e3040410fce4431981c5c9d781e9a3895e1a`.
 - Build/device verification: pending; check GitHub Actions before considering this verified.
+
+## End-of-day handoff — Scan screen visual refresh
+
+- Latest app UI commit: `b5b8e3040410fce4431981c5c9d781e9a3895e1a`.
+- Updated the Scan screen header to a white surface, small red MAHALAXMI MAHAMART branding, and a prominent dark “Expiry Manager” title.
+- Current-store card uses a soft lavender surface; form fields use rounded corners and subtle grey borders with red focus accents; expiry-date and Save Entry controls have refreshed shapes.
+- Today's scheduled categories remain dynamic and display one category per line.
+- Related code commits today: `9dee3136d61a3af31e9f74dd19be510d0d5d2136` (vertical categories) and `b5b8e3040410fce4431981c5c9d781e9a3895e1a` (visual refresh).
+- GitHub Actions run for the visual refresh was still in progress at last check: https://github.com/rajuuddanti/Expiry/actions/runs/40854750424 . Recheck before claiming the build passed.
+- No device/emulator visual verification has been recorded yet.
+- End-of-day state: pause further changes; next session should first inspect current branch HEAD and Actions status, then verify the Scan screen UI.
