@@ -158,6 +158,23 @@ class MainActivity : ComponentActivity() {
         setContent {
             val scope = rememberCoroutineScope()
             val entries by dao.observeEntries().collectAsState(initial = emptyList())
+            val currentSessionDate = run {
+                val now = LocalDateTime.now(IndiaZone)
+                if (now.hour < 15) now.toLocalDate().minusDays(1) else now.toLocalDate()
+            }
+            val currentSessionEntries = remember(entries, currentSessionDate) {
+                entries.filter { entry ->
+                    val entrySessionDate = runCatching {
+                        java.time.OffsetDateTime.parse(entry.sessionStart).atZoneSameInstant(IndiaZone).toLocalDate()
+                    }.getOrElse {
+                        runCatching {
+                            val created = java.time.OffsetDateTime.parse(entry.createdAt).atZoneSameInstant(IndiaZone).toLocalDateTime()
+                            if (created.hour < 15) created.toLocalDate().minusDays(1) else created.toLocalDate()
+                        }.getOrNull()
+                    }
+                    entrySessionDate == currentSessionDate
+                }
+            }
             val syncRepository = remember { SupabaseSyncRepository(applicationContext, dao) }
             var syncMessage by remember { mutableStateOf("Not synced yet") }
             var isSyncing by remember { mutableStateOf(false) }
@@ -623,8 +640,8 @@ class MainActivity : ComponentActivity() {
                             AppScreen.History -> {
                                 Column(Modifier.fillMaxSize().padding(16.dp)) {
                                     Text("Entry History", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                                    Text("Recent entries: ${entries.size}", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
-                                    Button(onClick = { shareCsv(entries) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text("EXPORT CSV / SHARE") }
+                                    Text("Today's entries: ${currentSessionEntries.size}", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
+                                    Button(onClick = { shareCsv(currentSessionEntries) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text("EXPORT CSV / SHARE") }
                                     Button(
                                         onClick = {
                                             if (!isUploading) {
@@ -647,11 +664,11 @@ class MainActivity : ComponentActivity() {
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF455A64))
                                     ) { Text(if (isUploading) "UPLOADING…" else "UPLOAD TO SUPABASE") }
                                     Text(uploadMessage, color = if (uploadMessage.startsWith("Upload failed")) MahalaxmiRed else Color.Gray, fontSize = 12.sp)
-                                    if (entries.isEmpty()) {
-                                        Text("No entries yet. Saved entries will appear here.")
+                                    if (currentSessionEntries.isEmpty()) {
+                                        Text("No entries for the current day yet.")
                                     } else {
                                         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            items(entries, key = { it.id }) { item ->
+                                            items(currentSessionEntries, key = { it.id }) { item ->
                                                 Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                                                     Column(Modifier.padding(12.dp)) {
                                                         Text(item.productName, fontWeight = FontWeight.Bold)
