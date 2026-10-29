@@ -12,7 +12,10 @@ class ExpirySyncWorker(
     override suspend fun doWork(): Result {
         return try {
             val dao = ExpiryDatabase.getInstance(applicationContext).expiryDao()
-            SupabaseSyncRepository(applicationContext, dao).sync()
+            val repository = SupabaseSyncRepository(applicationContext, dao)
+            repository.sync()
+            // Retry locally saved expiry entries whenever this connected-network worker runs.
+            repository.uploadPendingEntries()
             Result.success()
         } catch (_: Exception) {
             Result.retry()
