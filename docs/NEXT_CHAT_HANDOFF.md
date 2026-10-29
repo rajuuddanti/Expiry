@@ -112,3 +112,10 @@ Do not report build/device verification as complete until it has actually been c
 - The History screen's manual upload remains available as a fallback.
 - Relevant commits: `6c6194f0e540b350ba4bb39a0740110d99f47a33`, `c862f3ed96d8a642764ae434093c0422e618bf85`, `bee929f29bdbcc23250302f540728ba871648b16`.
 - Verify GitHub Actions and test offline/online upload behavior on a device before considering this complete.
+
+## CSV export filename update — 2026-10-29
+
+- CSV filename pattern is now `Store_Category-Date.csv`, such as `Dharmaram_NAMKEEN-CHIPS-2026-10-29.csv`.
+- Multiple categories use `Multiple-Categories`; missing category uses `Uncategorised`. Filename parts are sanitized. CSV contents are unchanged.
+- Code commit: `8493393283200b5034f5b76007b778c5ad1b6b03`.
+- Verify build and actual share filename on device before calling this tested.
