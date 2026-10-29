@@ -67,3 +67,13 @@ Verify current branch ancestry/source before assuming these commits are present.
 
 ## Working style
 User prefers direct, informal “bro” communication and concrete step-by-step actions. “Push the handoff .md files” means commit Markdown files directly to the requested GitHub repository/branch.
+
+## 2026-10-29 — documentation and main-screen heading
+
+- Added `docs/IMPLEMENTATION_LOG_2026-10-29.md` to record the latest UI change and project reminders.
+- Main-screen heading should show the actual category names scheduled for the current day, joined with ` • ` when there is more than one category. Do not display an extra “Present Day Categories” label.
+- Keep the Return Rules control on a separate row below the category heading.
+- Added a documentation index in the root README so a new chat/developer can find the handoff, implementation status, schemas, SQL notes, business rules, and changelog quickly.
+- The current branch head at the time of this documentation update was `2a7ee9a270f3b7523d3d0dfbc09979d82cddcfae` before these documentation commits.
+- Verification discipline: do not infer a successful build or runtime test from a commit alone; check the relevant GitHub Actions run and test actual app behavior.
+- Important: if older documents conflict about whether expiry entries are local-only or uploaded to Supabase, treat that as a documentation inconsistency that must be reconciled against the latest explicit user decision and current source before further implementation.
