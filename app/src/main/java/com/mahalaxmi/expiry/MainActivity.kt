@@ -425,24 +425,35 @@ class MainActivity : ComponentActivity() {
                                     Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp).verticalScroll(rememberScrollState()),
                                     verticalArrangement = Arrangement.spacedBy(7.dp)
                                 ) {
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Expiry Entry", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                        TextButton(onClick = {
-                                            showReturnRules = true
-                                            if (returnRules.isEmpty() && !returnRulesLoading) {
-                                                scope.launch {
-                                                    returnRulesLoading = true
-                                                    returnRulesError = ""
-                                                    try {
-                                                        returnRules = syncRepository.fetchReturnRules()
-                                                    } catch (error: Exception) {
-                                                        returnRulesError = error.message ?: "Could not load return rules."
-                                                    } finally {
-                                                        returnRulesLoading = false
+                                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text("Present Day Categories", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            todaySchedule.joinToString(" • ") { it.baseCategory }.ifBlank { "No categories scheduled today" },
+                                            fontSize = 12.sp,
+                                            color = Color.DarkGray,
+                                            lineHeight = 15.sp
+                                        )
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                            TextButton(
+                                                onClick = {
+                                                    showReturnRules = true
+                                                    if (returnRules.isEmpty() && !returnRulesLoading) {
+                                                        scope.launch {
+                                                            returnRulesLoading = true
+                                                            returnRulesError = ""
+                                                            try {
+                                                                returnRules = syncRepository.fetchReturnRules()
+                                                            } catch (error: Exception) {
+                                                                returnRulesError = error.message ?: "Could not load return rules."
+                                                            } finally {
+                                                                returnRulesLoading = false
+                                                            }
+                                                        }
                                                     }
-                                                }
-                                            }
-                                        }) { Text("ⓘ Return Rules", color = MahalaxmiRed, fontWeight = FontWeight.Bold) }
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                            ) { Text("ⓘ Return Rules", fontSize = 12.sp, color = MahalaxmiRed, fontWeight = FontWeight.Bold) }
+                                        }
                                     }
                                     if (showReturnRules) {
                                         val categoryRules = todaySchedule.mapNotNull { row ->
