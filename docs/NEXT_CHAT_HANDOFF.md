@@ -86,3 +86,10 @@ Some older handoff documents disagree about expiry entry storage/upload behavior
 - Latest Scan screen refinement: today's scheduled categories are separated by newlines so two categories appear one above the other.
 - Commit: `9dee3136d61a3af31e9f74dd19be510d0d5d2136`.
 - Check GitHub Actions and inspect the screen on a device/emulator before calling the change verified.
+
+## Modern Scan screen styling — 2026-10-29
+
+- Scan screen visual refresh commit: `b5b8e3040410fce4431981c5c9d781e9a3895e1a`.
+- The header is now white with small red MAHALAXMI MAHAMART branding and a bold dark Expiry Manager title; current-store card is soft lavender; fields use rounded corners and red focus accents; expiry date and Save Entry controls have updated shapes.
+- Categories remain dynamic from the schedule and are stacked vertically.
+- Check GitHub Actions for this commit and inspect the UI on a device/emulator before stating the change is verified.
