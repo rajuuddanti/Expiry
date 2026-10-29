@@ -93,3 +93,14 @@ Some older handoff documents disagree about expiry entry storage/upload behavior
 - The header is now white with small red MAHALAXMI MAHAMART branding and a bold dark Expiry Manager title; current-store card is soft lavender; fields use rounded corners and red focus accents; expiry date and Save Entry controls have updated shapes.
 - Categories remain dynamic from the schedule and are stacked vertically.
 - Check GitHub Actions for this commit and inspect the UI on a device/emulator before stating the change is verified.
+
+## End-of-day handoff — 2026-10-29
+
+Pause development here for today. On the next session:
+1. Fetch the latest branch HEAD; documentation commits may be newer than the app-code commit.
+2. Check GitHub Actions for app commit `b5b8e3040410fce4431981c5c9d781e9a3895e1a` and confirm whether it passed.
+3. If the build succeeds, install/run the app and visually verify the updated Scan screen on an emulator or device.
+4. Current design: white header, small red MAHAMART branding, bold dark Expiry Manager title, vertically stacked dynamic categories, lavender current-store card, rounded fields, and refreshed expiry/save controls.
+5. No further UI redesign is requested until the user resumes.
+
+Do not report build/device verification as complete until it has actually been checked.
