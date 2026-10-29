@@ -117,3 +117,10 @@ User prefers direct, informal “bro” communication and concrete step-by-step 
 - The CSV column format and exported entry data remain unchanged.
 - Code commit: `8493393283200b5034f5b76007b778c5ad1b6b03`.
 - Build/device verification pending.
+
+## 2026-10-29 — CSV export naming
+
+- Export filenames use `Store_Category-Date.csv`; multiple categories use `Multiple-Categories`, and missing categories use `Uncategorised`.
+- Filename components are sanitized. Exported CSV columns and data are unchanged.
+- Code commit: `8493393283200b5034f5b76007b778c5ad1b6b03`.
+- Build/device verification remains pending.
