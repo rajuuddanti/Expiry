@@ -58,3 +58,12 @@
 - GitHub Actions run for the visual refresh was still in progress at last check: https://github.com/rajuuddanti/Expiry/actions/runs/40854750424 . Recheck before claiming the build passed.
 - No device/emulator visual verification has been recorded yet.
 - End-of-day state: pause further changes; next session should first inspect current branch HEAD and Actions status, then verify the Scan screen UI.
+
+## 2026-10-29 — quantity reset and automatic expiry upload
+
+- After a successful save, the quantity field is cleared instead of being reset to `1`; this avoids accidentally carrying the previous quantity into the next entry.
+- Expiry entries now attempt an immediate upload to `public.expiry_entry_uploads` after being saved locally.
+- If automatic upload fails (for example, no connection), the entry remains stored locally and a connected-network one-time retry is scheduled. The background sync worker also attempts to upload pending entries when it runs.
+- The History screen's manual upload action remains available as a fallback.
+- Code commits: `6c6194f0e540b350ba4bb39a0740110d99f47a33`, `c862f3ed96d8a642764ae434093c0422e618bf85`, and `bee929f29bdbcc23250302f540728ba871648b16`.
+- Build and live-device/Supabase verification are pending; inspect GitHub Actions before claiming success.
