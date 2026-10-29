@@ -1,46 +1,46 @@
 # Mahalaxmi Expiry Manager
 
-Android expiry-date capture app for Mahalaxmi Mahamart stores.
+Android app for recording product expiry checks across Mahalaxmi Mahamart stores.
 
-## Start here
+## New chat / developer handoff
 
-For any new ChatGPT session or developer handoff, read:
+**Start with `docs/CURRENT_HANDOFF.md`, then read `docs/NEXT_CHAT_HANDOFF.md`.** These are the quickest routes to understand the latest recorded project state and resume work without relying on an old chat.
 
-- [Current handoff](docs/CURRENT_HANDOFF.md) — latest decisions, reported backend state, branch context and next steps.
-- [Project context](docs/PROJECT_CONTEXT.md) — app purpose and core requirements.
-- [Implementation status](docs/IMPLEMENTATION_STATUS.md) — distinguish implemented code from unverified work.
-- [Data mapping and import](docs/DATA_MAPPING_AND_IMPORT.md) — stacked SKU/barcode source, normalization and FCFS rules.
-- [Return rules and schedule](docs/EXPIRY_RETURN_RULES_AND_SCHEDULE.md) — single return-rules table, brand overrides, popup and schedule continuation requirements.
-- [Next-chat handoff](docs/NEXT_CHAT_HANDOFF.md) — copy-ready continuation instructions.
-- [Decisions and changelog](docs/DECISIONS_AND_CHANGELOG.md) — user decisions and history.
-- [Implementation plan](docs/IMPLEMENTATION_PLAN.md) — outstanding checklist.
-- [SQL reference](docs/SQL_REFERENCE.md) — historical product-master staging SQL; verify it against the current project before running.
-- [Product master daily sync](docs/PRODUCT_MASTER_DAILY_SYNC.md) — historical incremental-sync design; check against the latest local-only expiry-entry decision before using.
+## Documentation index
 
-## Current data direction
+### Start and resume
+- [Current project handoff](docs/CURRENT_HANDOFF.md) — current decisions, branch context, risks, and next steps.
+- [Next-chat handoff](docs/NEXT_CHAT_HANDOFF.md) — copy-ready instructions for a fresh ChatGPT chat.
+- [Project context](docs/PROJECT_CONTEXT.md) — purpose, requirements, and core app behavior.
+- [Implementation status](docs/IMPLEMENTATION_STATUS.md) — implemented versus not yet verified.
+- [Implementation plan](docs/IMPLEMENTATION_PLAN.md) — planned work and checklist.
+- [Feature workflow handoff](docs/FEATURE_WORKFLOW_HANDOFF.md) — branch/workflow notes.
+- [Requirements handoff](docs/REQUIREMENTS_HANDOFF_2026-10-26.md) — detailed requirements captured for handoff.
 
-Latest reported Supabase business tables:
-1. `public.MASTER` — product master with `"SkuCode"`, `"SkuLongName"`, `"Catg"`.
-2. `public.expiry_return_rules` — category and brand return rules in one table.
+### Data and backend
+- [Data mapping and import](docs/DATA_MAPPING_AND_IMPORT.md) — SKU/barcode mapping, normalization, and first-match rules.
+- [Schema reference](docs/SCHEMA_REFERENCE.md) — table and field reference.
+- [SQL reference](docs/SQL_REFERENCE.md) — SQL notes; verify against the current backend before running.
+- [Supabase schema handoff](docs/SUPABASE_SCHEMA_HANDOFF.md) — recorded Supabase schema decisions.
+- [Supabase Android setup](docs/SUPABASE_ANDROID_SETUP.md) — app configuration and setup notes.
+- [Expiry upload security plan](docs/EXPIRY_UPLOAD_SECURITY_PLAN.md) — security considerations for upload workflows.
+- [Product master daily sync](docs/PRODUCT_MASTER_DAILY_SYNC.md) — historical sync design; verify it against current code and decisions before relying on it.
 
-The user-reported migration removed obsolete cloud-upload/device/security tables. Expiry entries are intended to remain on the device in Room and be exported/shared as CSV. Do not reintroduce cloud expiry uploads unless the user explicitly changes this decision.
+### Business rules and history
+- [Expiry return rules and schedule](docs/EXPIRY_RETURN_RULES_AND_SCHEDULE.md) — category calendar, return windows, and brand rules.
+- [Decisions and changelog](docs/DECISIONS_AND_CHANGELOG.md) — confirmed decisions and dated changes.
+- [Implementation log — 2026-10-26](docs/IMPLEMENTATION_LOG_2026-10-26.md)
+- [Implementation log — 2026-10-29](docs/IMPLEMENTATION_LOG_2026-10-29.md)
 
-The older `product_master` / `expiry_entries` and daily delta-sync documents describe an earlier project direction and may not match the latest implementation/backend. Read the Current Handoff first and verify actual branch/source before relying on old docs or SQL.
+## Important project guardrails
 
-## Key behavior
+- Verify the actual branch, commit, and source before changing code; branches may diverge.
+- Do not change Supabase URL/key configuration unless explicitly requested.
+- Never place a Supabase service-role key in the Android app.
+- A commit or a GitHub Actions run starting is not proof of a successful build or device test. Record the actual result.
+- Some documentation captures historical plans or states. If files conflict, inspect current code and the latest explicit user decision, then update the handoff/changelog so the conflict is visible and resolved.
+- Do not claim live Supabase data was inspected unless a connected tool actually verified it.
 
-- Scan either SKU or barcode/EAN.
-- Normalize digit-only codes shorter than 5 digits by left-padding to 5; preserve longer codes and all codes as text.
-- For duplicate product names, use the first SKU in original source order (FCFS).
-- Keep the raw scanned code separate from the canonical SKU.
-- Cache product master locally for offline lookup.
-- Store expiry records locally; export/share CSV.
-- Store session rollover is 3 PM local time.
-- Return Rules popup is a requested feature: show today's scheduled categories and their return windows, plus Himalaya (60 days) and Kellogg's (30 days).
-- Existing category schedule currently covers 23 Oct 2026 through 31 Dec 2027; future continuation must preserve the exact rotation and never schedule more than two categories per day.
+## Current branch note
 
-## Security and verification
-
-- Do not change Supabase config or credentials unless explicitly requested.
-- Never ship a service-role key in the APK.
-- A commit does not prove a successful build or runtime test. State build/test status only when verified.
+Recent work is on `feature/new-expiry-upload-table`. Latest documented UI fix: the main-screen heading uses today's actual scheduled category names; it should not show an extra literal “Present Day Categories” label. See [the 2026-10-29 implementation log](docs/IMPLEMENTATION_LOG_2026-10-29.md).
