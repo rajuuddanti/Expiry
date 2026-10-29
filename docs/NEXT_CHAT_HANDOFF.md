@@ -119,3 +119,9 @@ Do not report build/device verification as complete until it has actually been c
 - Multiple categories use `Multiple-Categories`; missing category uses `Uncategorised`. Filename parts are sanitized. CSV contents are unchanged.
 - Code commit: `8493393283200b5034f5b76007b778c5ad1b6b03`.
 - Verify build and actual share filename on device before calling this tested.
+
+## CSV export filename update — 2026-10-29
+
+- Code commit: `8493393283200b5034f5b76007b778c5ad1b6b03`.
+- Filename pattern: `Store_Category-Date.csv`; multiple categories become `Multiple-Categories`, missing category becomes `Uncategorised`. CSV contents remain unchanged.
+- Confirm GitHub Actions and test the shared/exported filename on a device before treating this as verified.
