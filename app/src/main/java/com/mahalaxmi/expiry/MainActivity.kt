@@ -414,10 +414,27 @@ class MainActivity : ComponentActivity() {
                     Column(
                         Modifier.fillMaxSize().padding(padding).background(Color(0xFFF7F7F7))
                     ) {
-                        Column(Modifier.fillMaxWidth().background(MahalaxmiRed).padding(18.dp)) {
-                            Text("MAHALAXMI MAHAMART", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                            Text("EXPIRY MANAGER", color = Color.White, fontSize = 14.sp)
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .background(Color.White)
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            Text(
+                                "MAHALAXMI MAHAMART",
+                                color = MahalaxmiRed,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                "Expiry Manager",
+                                color = Color(0xFF25282C),
+                                fontSize = 25.sp,
+                                lineHeight = 29.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
                         }
+                        Divider(color = Color(0xFFE5E7EB), thickness = 1.dp)
 
                         when (screen) {
                             AppScreen.Scan -> {
@@ -425,13 +442,26 @@ class MainActivity : ComponentActivity() {
                                     Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp).verticalScroll(rememberScrollState()),
                                     verticalArrangement = Arrangement.spacedBy(7.dp)
                                 ) {
-                                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text(
-                                            todaySchedule.joinToString("\n") { it.baseCategory }.ifBlank { "No categories scheduled today" },
-                                            fontSize = 17.sp,
-                                            lineHeight = 20.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                    Column(
+                                        Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
+                                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        todaySchedule.forEach { row ->
+                                            Text(
+                                                row.baseCategory,
+                                                fontSize = 17.sp,
+                                                lineHeight = 21.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF292D32)
+                                            )
+                                        }
+                                        if (todaySchedule.isEmpty()) {
+                                            Text(
+                                                "No categories scheduled today",
+                                                fontSize = 15.sp,
+                                                color = Color(0xFF73777D)
+                                            )
+                                        }
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                             TextButton(
                                                 onClick = {
@@ -502,10 +532,25 @@ class MainActivity : ComponentActivity() {
                                             confirmButton = { TextButton(onClick = { showReturnRules = false }) { Text("CLOSE") } }
                                         )
                                     }
-                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                                        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                                            Text("CURRENT STORE", color = Color.Gray, fontSize = 10.sp)
-                                            Text(if (store.isBlank()) "Select store in Settings" else store, fontWeight = FontWeight.Bold)
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0EAF6))
+                                    ) {
+                                        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                                            Text(
+                                                "CURRENT STORE",
+                                                color = Color(0xFF77717E),
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                letterSpacing = 0.5.sp
+                                            )
+                                            Text(
+                                                if (store.isBlank()) "Select store in Settings" else store,
+                                                color = Color(0xFF29252F),
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         }
                                     }
                                     Row(
@@ -516,7 +561,13 @@ class MainActivity : ComponentActivity() {
                                         OutlinedTextField(
                                             value = code, onValueChange = { code = it },
                                             label = { Text("SKU code / scanned barcode") },
-                                            modifier = Modifier.weight(1f), singleLine = true
+                                            modifier = Modifier.weight(1f), singleLine = true,
+                                            shape = RoundedCornerShape(11.dp),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = MahalaxmiRed,
+                                                unfocusedBorderColor = Color(0xFFD0D4D9),
+                                                focusedLabelColor = MahalaxmiRed
+                                            )
                                         )
                                         Button(
                                             onClick = {
@@ -537,19 +588,37 @@ class MainActivity : ComponentActivity() {
                                         value = name, onValueChange = { },
                                         label = { Text("Product name (auto-filled)") },
                                         modifier = Modifier.fillMaxWidth(), singleLine = true,
-                                        readOnly = true
+                                        readOnly = true,
+                                        shape = RoundedCornerShape(11.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = MahalaxmiRed,
+                                            unfocusedBorderColor = Color(0xFFD0D4D9),
+                                            focusedLabelColor = MahalaxmiRed
+                                        )
                                     )
                                     OutlinedTextField(
                                         value = category, onValueChange = { },
                                         label = { Text("Category (from product master)") },
                                         modifier = Modifier.fillMaxWidth(), singleLine = true,
-                                        readOnly = true
+                                        readOnly = true,
+                                        shape = RoundedCornerShape(11.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = MahalaxmiRed,
+                                            unfocusedBorderColor = Color(0xFFD0D4D9),
+                                            focusedLabelColor = MahalaxmiRed
+                                        )
                                     )
                                     OutlinedTextField(
                                         value = qty, onValueChange = { qty = it.filter(Char::isDigit) },
                                         label = { Text("Quantity") },
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        modifier = Modifier.fillMaxWidth(), singleLine = true
+                                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                                        shape = RoundedCornerShape(11.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = MahalaxmiRed,
+                                            unfocusedBorderColor = Color(0xFFD0D4D9),
+                                            focusedLabelColor = MahalaxmiRed
+                                        )
                                     )
                                     OutlinedButton(
                                         onClick = {
@@ -573,8 +642,11 @@ class MainActivity : ComponentActivity() {
                                                 picker.show()
                                             }
                                         },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) { Text("Expiry date: $expiry  •  Choose date") }
+                                        modifier = Modifier.fillMaxWidth().height(46.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF5D4A8A)),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD2CBDD))
+                                    ) { Text("Expiry date: $expiry  •  Choose date", fontWeight = FontWeight.SemiBold) }
 
                                     Button(
                                         onClick = {
@@ -587,8 +659,9 @@ class MainActivity : ComponentActivity() {
                                             }
                                         },
                                         modifier = Modifier.fillMaxWidth().height(52.dp),
+                                        shape = RoundedCornerShape(16.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
-                                    ) { Text("SAVE ENTRY", fontWeight = FontWeight.Bold) }
+                                    ) { Text("SAVE ENTRY", fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp) }
                                     if (message.isNotBlank()) Text(message, color = MahalaxmiRed, fontSize = 13.sp)
                                 }
                             }
