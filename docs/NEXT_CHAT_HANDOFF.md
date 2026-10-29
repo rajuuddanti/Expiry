@@ -104,3 +104,11 @@ Pause development here for today. On the next session:
 5. No further UI redesign is requested until the user resumes.
 
 Do not report build/device verification as complete until it has actually been checked.
+
+## Latest behavior change — quantity reset and auto-upload
+
+- Quantity is cleared after saving; it should not default to `1`.
+- Saving a record triggers an immediate upload attempt. Failed uploads stay local and schedule a connected-network retry; the background worker also uploads pending records.
+- The History screen's manual upload remains available as a fallback.
+- Relevant commits: `6c6194f0e540b350ba4bb39a0740110d99f47a33`, `c862f3ed96d8a642764ae434093c0422e618bf85`, `bee929f29bdbcc23250302f540728ba871648b16`.
+- Verify GitHub Actions and test offline/online upload behavior on a device before considering this complete.
