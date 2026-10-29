@@ -36,3 +36,14 @@
 - No business logic or Supabase configuration was changed.
 - Code commit: `9dee3136d61a3af31e9f74dd19be510d0d5d2136`.
 - Build/device verification: not yet confirmed.
+
+## Modern Scan screen visual refresh
+
+- Changed the Scan screen header to a clean white header with small red MAHALAXMI MAHAMART branding and a larger dark “Expiry Manager” title.
+- Added a subtle divider beneath the header.
+- Kept today's actual scheduled categories on separate lines.
+- Refined the current-store card with a soft lavender surface, stronger store name typography, and consistent spacing.
+- Rounded form field corners, softened inactive borders, and used Mahalaxmi red for focused fields.
+- Refined the expiry-date button and Save Entry button shapes.
+- Code commit: `b5b8e3040410fce4431981c5c9d781e9a3895e1a`.
+- Build/device verification: pending; check GitHub Actions before considering this verified.
