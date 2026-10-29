@@ -77,3 +77,10 @@ User prefers direct, informal “bro” communication and concrete step-by-step 
 - The current branch head at the time of this documentation update was `2a7ee9a270f3b7523d3d0dfbc09979d82cddcfae` before these documentation commits.
 - Verification discipline: do not infer a successful build or runtime test from a commit alone; check the relevant GitHub Actions run and test actual app behavior.
 - Important: if older documents conflict about whether expiry entries are local-only or uploaded to Supabase, treat that as a documentation inconsistency that must be reconciled against the latest explicit user decision and current source before further implementation.
+
+## 2026-10-29 — stack today's categories vertically
+
+- On the Scan screen, each category scheduled today is now displayed on its own line rather than separated by a bullet.
+- Keep the category heading driven by the existing schedule, and retain the Return Rules control below it.
+- This is a layout-only change; no schedule logic, business rules, or Supabase configuration changed.
+- Commit: `9dee3136d61a3af31e9f74dd19be510d0d5d2136`.
