@@ -277,8 +277,25 @@ class MainActivity : ComponentActivity() {
                                 createdAt = now.atZone(IndiaZone).toOffsetDateTime().toString()
                             )
                         )
-                        code = ""; name = ""; ean = ""; category = ""; qty = "1"
-                        message = "Entry saved locally. Category captured for export and upload."
+                        code = ""; name = ""; ean = ""; category = ""; qty = ""
+                        message = "Entry saved locally. Uploading automatically…"
+                        if (!isUploading) {
+                            isUploading = true
+                            try {
+                                val result = syncRepository.uploadPendingEntries()
+                                uploadMessage = result.message
+                                message = if (result.uploaded > 0) {
+                                    "Entry saved and uploaded automatically."
+                                } else {
+                                    "Entry saved locally. ${result.message}"
+                                }
+                            } catch (error: Exception) {
+                                uploadMessage = "Automatic upload pending: ${error.message ?: "No connection"}"
+                                message = "Entry saved locally. Upload will retry when connected."
+                            } finally {
+                                isUploading = false
+                            }
+                        }
                     }
                 }
             }
