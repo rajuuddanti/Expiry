@@ -426,12 +426,11 @@ class MainActivity : ComponentActivity() {
                                     verticalArrangement = Arrangement.spacedBy(7.dp)
                                 ) {
                                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text("Present Day Categories", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                         Text(
                                             todaySchedule.joinToString(" • ") { it.baseCategory }.ifBlank { "No categories scheduled today" },
-                                            fontSize = 12.sp,
-                                            color = Color.DarkGray,
-                                            lineHeight = 15.sp
+                                            fontSize = 17.sp,
+                                            lineHeight = 20.sp,
+                                            fontWeight = FontWeight.Bold
                                         )
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                             TextButton(
