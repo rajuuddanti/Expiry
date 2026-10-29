@@ -80,3 +80,9 @@ Some older handoff documents disagree about expiry entry storage/upload behavior
 3. Check GitHub Actions for the current commit; report success/failure/in-progress accurately.
 4. Separate source-level implementation from build verification and real-device/backend verification.
 5. After each material change, update the dated implementation log, implementation status, and changelog/handoff as appropriate.
+
+## UI follow-up — 2026-10-29
+
+- Latest Scan screen refinement: today's scheduled categories are separated by newlines so two categories appear one above the other.
+- Commit: `9dee3136d61a3af31e9f74dd19be510d0d5d2136`.
+- Check GitHub Actions and inspect the screen on a device/emulator before calling the change verified.
