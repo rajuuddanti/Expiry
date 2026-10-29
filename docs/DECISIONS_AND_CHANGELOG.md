@@ -108,3 +108,12 @@ User prefers direct, informal “bro” communication and concrete step-by-step 
 - The History screen's manual upload action remains available as a fallback.
 - Code commits: `6c6194f0e540b350ba4bb39a0740110d99f47a33`, `c862f3ed96d8a642764ae434093c0422e618bf85`, and `bee929f29bdbcc23250302f540728ba871648b16`.
 - Build and live-device/Supabase verification are pending; inspect GitHub Actions before claiming success.
+
+## CSV export filename — 2026-10-29
+
+- CSV export filenames now follow `Store_Category-Date.csv`, for example `Dharmaram_NAMKEEN-CHIPS-2026-10-29.csv`.
+- Filename parts are sanitized to use letters, numbers, and hyphens so store/category names do not create invalid file paths.
+- If entries contain more than one distinct category, the category part becomes `Multiple-Categories`; if category is missing, it becomes `Uncategorised`.
+- The CSV column format and exported entry data remain unchanged.
+- Code commit: `8493393283200b5034f5b76007b778c5ad1b6b03`.
+- Build/device verification pending.
