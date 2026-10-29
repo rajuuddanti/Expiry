@@ -292,6 +292,14 @@ class MainActivity : ComponentActivity() {
                             } catch (error: Exception) {
                                 uploadMessage = "Automatic upload pending: ${error.message ?: "No connection"}"
                                 message = "Entry saved locally. Upload will retry when connected."
+                                val retryRequest = OneTimeWorkRequestBuilder<ExpirySyncWorker>()
+                                    .setConstraints(networkConstraints)
+                                    .build()
+                                WorkManager.getInstance(applicationContext).enqueueUniqueWork(
+                                    "expiry-auto-upload-retry",
+                                    ExistingWorkPolicy.KEEP,
+                                    retryRequest
+                                )
                             } finally {
                                 isUploading = false
                             }
