@@ -27,3 +27,12 @@
 ## Latest UI commit
 - Commit: `6413c3737b763483b64a3630a5b664c15fef1342`
 - Message: `Use today's scheduled categories as main screen heading`
+
+## Follow-up UI refinement — categories stacked vertically
+
+- Updated the Scan screen's scheduled-category heading to put each scheduled category on its own line instead of joining categories with a bullet.
+- This makes two scheduled categories easier to read on smaller screens.
+- The actual category names still come from today's schedule; no categories are hardcoded.
+- No business logic or Supabase configuration was changed.
+- Code commit: `9dee3136d61a3af31e9f74dd19be510d0d5d2136`.
+- Build/device verification: not yet confirmed.
