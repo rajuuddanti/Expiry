@@ -91,3 +91,11 @@ User prefers direct, informal “bro” communication and concrete step-by-step 
 - Styled the current-store card, field borders/corners, expiry-date control, and primary Save Entry button for a more modern retail-app appearance.
 - Preserved the dynamic vertical category list and existing form/business logic.
 - Code commit: `b5b8e3040410fce4431981c5c9d781e9a3895e1a`. Build and device verification must be checked separately.
+
+## 2026-10-29 — end-of-day Scan screen design handoff
+
+- The Scan screen now has a white header, red MAHAMART brand text, and a bold dark Expiry Manager title.
+- Today's scheduled categories are stacked vertically.
+- Current-store card, rounded form fields, expiry-date control, and Save Entry button received a visual refresh.
+- Code commits: `9dee3136d61a3af31e9f74dd19be510d0d5d2136` and `b5b8e3040410fce4431981c5c9d781e9a3895e1a`.
+- Verification at documentation time: GitHub Actions for the visual refresh had not yet been confirmed complete; no device visual test recorded. Recheck on next session.
