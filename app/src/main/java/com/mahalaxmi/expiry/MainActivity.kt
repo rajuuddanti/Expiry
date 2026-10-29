@@ -427,7 +427,7 @@ class MainActivity : ComponentActivity() {
                                 ) {
                                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                         Text(
-                                            todaySchedule.joinToString(" • ") { it.baseCategory }.ifBlank { "No categories scheduled today" },
+                                            todaySchedule.joinToString("\n") { it.baseCategory }.ifBlank { "No categories scheduled today" },
                                             fontSize = 17.sp,
                                             lineHeight = 20.sp,
                                             fontWeight = FontWeight.Bold
