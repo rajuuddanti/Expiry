@@ -84,3 +84,10 @@ User prefers direct, informal “bro” communication and concrete step-by-step 
 - Keep the category heading driven by the existing schedule, and retain the Return Rules control below it.
 - This is a layout-only change; no schedule logic, business rules, or Supabase configuration changed.
 - Commit: `9dee3136d61a3af31e9f74dd19be510d0d5d2136`.
+
+## 2026-10-29 — modern Scan screen design
+
+- Refreshed the Scan screen header to a white surface with red MAHALAXMI MAHAMART branding and a prominent dark Expiry Manager title.
+- Styled the current-store card, field borders/corners, expiry-date control, and primary Save Entry button for a more modern retail-app appearance.
+- Preserved the dynamic vertical category list and existing form/business logic.
+- Code commit: `b5b8e3040410fce4431981c5c9d781e9a3895e1a`. Build and device verification must be checked separately.
