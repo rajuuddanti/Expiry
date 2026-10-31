@@ -224,8 +224,10 @@ class MainActivity : ComponentActivity() {
             var returnRulesLoading by remember { mutableStateOf(false) }
             var returnRulesError by remember { mutableStateOf("") }
             val inspectionSchedule = remember { loadInspectionSchedule(this@MainActivity) }
-            val todaySchedule = remember(LocalDate.now(IndiaZone), inspectionSchedule) {
-                scheduledRowsForDate(inspectionSchedule, LocalDate.now(IndiaZone))
+            // The app's business day rolls over at 3 PM local time, not midnight.
+            // Before 3 PM, category scheduling must still use the previous calendar date.
+            val todaySchedule = remember(currentSessionDate, inspectionSchedule) {
+                scheduledRowsForDate(inspectionSchedule, currentSessionDate)
             }
 
             LaunchedEffect(scannedValue) {
