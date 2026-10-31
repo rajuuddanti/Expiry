@@ -132,3 +132,20 @@ Do not report build/device verification as complete until it has actually been c
 - Scan screen category schedule now uses the 3 PM-anchored `currentSessionDate`. Before 3 PM local time it uses yesterday; from 3 PM onward it uses today.
 - This was a bug where the schedule used `LocalDate.now()` and could show the next date's categories before the business day had rolled over.
 - Verify GitHub Actions and test category display before/after 3 PM. Do not alter the schedule calendar to work around this date-selection bug.
+
+
+## 2026-10-31 — next requested feature: daily Google Sheets export
+
+User has confirmed the following export requirements. This is **planning only**; do not claim the automation already exists.
+
+- Export source is only `public.expiry_entry_uploads` (the Supabase table shown by the user).
+- Destination is Google Drive under `MahaMart Expiry Reports/YYYY/Month/`.
+- Run at 3:15 PM Asia/Kolkata and export only the previous completed 3 PM-anchored business day: prior business date 15:00 through current export date 14:59:59.
+- Create exactly one daily folder, named with the date and the **two categories scheduled for that previous business date**. Example: `11 Nov Beverages-Biscuits`.
+- The folder-name categories must come from the existing schedule, not from the actual category values submitted by store staff.
+- Inside the daily folder, create one Google Sheet for every distinct category actually present in that day's source rows. Combine all stores in each sheet and preserve the `location` field.
+- If an unexpected category is entered, export it as its own sheet in the same folder but do not include it in the folder name. Sheet generation must be dynamic, not restricted to the two scheduled categories.
+- Preserve all source columns/values, including deletion status; do not mutate/delete Supabase data. Make retries idempotent to prevent duplicate folders/sheets.
+- Google Sheets is the selected output; users can download Excel files from Sheets.
+- Suggested implementation: Google Apps Script time-driven trigger + Supabase REST API + Drive/Sheets APIs. Store credentials in Script Properties; never put a service-role key in Android. Do not change the existing Supabase URL/publishable-key configuration.
+- Before implementation, inspect the current `expiry_entry_uploads` schema and find a reliable way to read the existing category schedule for the previous business date. Do not assume a schedule table name or invent schema. Verify API pagination, permissions/RLS, timezone boundaries, empty-day behavior, and duplicate/retry handling.
