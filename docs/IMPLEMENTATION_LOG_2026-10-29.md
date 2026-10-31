@@ -85,3 +85,17 @@
 - The underlying inspection schedule/calendar was not modified.
 - Code commit: `43ceba4271faa69fad0703f54b40907d43e77b4d`.
 - Build and device verification pending; check GitHub Actions and test before/after 3 PM.
+
+
+## 2026-10-31 — Google Sheets daily export requirements (planning only)
+
+- User confirmed the export source is the existing Supabase table `public.expiry_entry_uploads` (the table shown in their screenshot). Do not export unrelated tables or create a separate report format.
+- Desired destination: Google Drive, organized as `MahaMart Expiry Reports / YYYY / Month / <business-date folder>`.
+- Run daily at 3:15 PM Asia/Kolkata and export only the previous completed 3 PM-anchored business day: previous business date at 15:00 through export date at 14:59:59 local time.
+- One folder per business day. The folder name must use the business date and the **two categories assigned by the existing schedule for that previous business day**, e.g. `11 Nov Beverages-Biscuits`. The schedule retains its maximum-two-categories-per-day rule.
+- Inside that folder, create one Google Sheet for every distinct category actually present in that day's `expiry_entry_uploads` rows. All stores are combined in each category sheet; preserve the `location` column so rows can still be filtered by store.
+- If store staff enter a category outside the two scheduled categories, export it to its own Google Sheet in the same daily folder, but **do not add that unexpected category to the folder name**. Do not hardcode a two-category allowlist for sheet generation.
+- Export the source table's existing columns/values, including deletion status, rather than silently dropping fields or filtering records by store. Do not modify or delete Supabase records.
+- Avoid duplicate daily folders/sheets on retries; log successful exports and make retry behavior idempotent.
+- Google Sheets is the selected output. User can download a sheet as Microsoft Excel (.xlsx) from Google Sheets when needed.
+- Status: requirements clarified only. Google Apps Script / Drive automation has **not** been implemented or verified by this documentation update. Store credentials securely in Apps Script properties; never put a Supabase service-role key in the Android app. Preserve existing Android/Supabase configuration.
