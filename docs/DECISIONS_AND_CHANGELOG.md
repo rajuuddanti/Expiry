@@ -145,3 +145,12 @@ User prefers direct, informal “bro” communication and concrete step-by-step 
 - Preserve all source-table columns/values (including deletion status) and do not mutate/delete Supabase data. Prevent duplicate folders/files on retries.
 - Google Sheets is preferred; Excel download can be done from Google Sheets.
 - Status: this is a confirmed requirement, not an implemented feature. Any automation must keep credentials in Apps Script properties and must not expose a Supabase service-role key in Android. Do not change existing Supabase config.
+
+
+## 2026-10-31 — Google Sheets export script committed
+
+- Added `scripts/google-apps-script/Code.gs` and `docs/GOOGLE_SHEETS_EXPORT_SETUP.md`.
+- Script reads `public.expiry_entry_uploads` only; exports the prior completed 3 PM-anchored business day; uses the schedule JSON to name one daily folder with scheduled categories; and creates a sheet for every category present in the source rows, including unexpected categories.
+- All store rows remain combined in each category sheet; table columns including deletion status are retained. Export retries reuse existing folders/sheets and update an export log.
+- Commit IDs: script `18763802e0e34c68c7909b5411df9ca1492cb71c`; setup guide `dff51ad20cdb2316dba79d7f4c04e03e085232a0`.
+- Verification status: not yet installed in Google Apps Script, authorized, or tested against live Supabase/Drive. Follow setup guide and verify one manual export before enabling the daily trigger. Store the service-role key only in the private Apps Script project's Script Properties; never commit it or put it in Android.
