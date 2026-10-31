@@ -124,3 +124,11 @@ User prefers direct, informal “bro” communication and concrete step-by-step 
 - Filename components are sanitized. Exported CSV columns and data are unchanged.
 - Code commit: `8493393283200b5034f5b76007b778c5ad1b6b03`.
 - Build/device verification remains pending.
+
+## 2026-10-31 — category schedule follows 3 PM business day
+
+- Today's scheduled categories now resolve against `currentSessionDate`, not the midnight-based calendar date.
+- Before 3 PM, the app continues showing the previous business day's categories; at/after 3 PM, it switches to the current date's categories.
+- Inspection schedule data itself was not changed.
+- Code commit: `43ceba4271faa69fad0703f54b40907d43e77b4d`.
+- Build/device verification pending.
