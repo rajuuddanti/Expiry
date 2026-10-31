@@ -44,24 +44,26 @@ function exportDate_(date){
   const year=getFolder_(root,date.slice(0,4));
   const month=getFolder_(year,Utilities.formatDate(localDate_(date),TZ,'MMMM'));
   const day=getFolder_(month,folderLabel);
-  // Seed scheduled categories so empty business days still create header-only sheets.
+  // Only create sheets for categories that actually occur in the Supabase rows.
   const groups={};
-  scheduled.forEach(k=>{const name=clean_(k);if(name)groups[name]=[];});
   rows.forEach(r=>{
     const category=String(r.category||'').trim()||'Uncategorised';
     const name=clean_(category);
     if(!groups[name])groups[name]=[];
     groups[name].push(r);
   });
-  // Refresh existing sheets as empty when their category has no current rows.
+  const categories=Object.keys(groups).sort();
+
+  // Remove obsolete generated category sheets from this date's folder. This
+  // includes scheduled categories with no Supabase rows and categories that
+  // appeared in an earlier export but are absent from the current result.
   const existingFiles=day.getFiles();
   while(existingFiles.hasNext()){
     const file=existingFiles.next();
-    if(file.getMimeType()===MimeType.GOOGLE_SHEETS && file.getName()!=='_export_log' && !groups[file.getName()]){
-      groups[file.getName()]=[];
+    if(file.getMimeType()===MimeType.GOOGLE_SHEETS && !groups[file.getName()]){
+      file.setTrashed(true);
     }
   }
-  const categories=Object.keys(groups).sort();
   categories.forEach(k=>writeSheet_(day,k,groups[k]));
   logExport_(root,date,start,end,rows.length,categories,day.getId());
   Logger.log(JSON.stringify({businessDate:date,rows:rows.length,scheduledCategories:scheduled,exportedCategories:categories,folder:folderLabel}));
