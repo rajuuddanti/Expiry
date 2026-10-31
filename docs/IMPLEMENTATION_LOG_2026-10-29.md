@@ -76,3 +76,12 @@
 - The CSV column format and exported entry data remain unchanged.
 - Code commit: `8493393283200b5034f5b76007b778c5ad1b6b03`.
 - Build/device verification pending.
+
+## 2026-10-31 — use 3 PM business date for category schedule
+
+- Fixed the Scan screen's scheduled categories to use the existing `currentSessionDate` instead of `LocalDate.now()`.
+- Before 3:00 PM local time, the active business date is yesterday; from 3:00 PM onward, it is the current calendar date.
+- This aligns the category heading and category validation with the same 3 PM session boundary used by entry history.
+- The underlying inspection schedule/calendar was not modified.
+- Code commit: `43ceba4271faa69fad0703f54b40907d43e77b4d`.
+- Build and device verification pending; check GitHub Actions and test before/after 3 PM.
