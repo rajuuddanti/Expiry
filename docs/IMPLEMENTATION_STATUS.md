@@ -52,11 +52,11 @@ Read `docs/CURRENT_HANDOFF.md` and `docs/EXPIRY_RETURN_RULES_AND_SCHEDULE.md` fo
 
 ## Google Sheets export — status as of 2026-10-31
 
-**Manual export: verified working in the user's Apps Script environment. User later confirmed the automatic export worked. Empty-day behavior and the filter fix are now committed in the repository script; these new changes still need to be copied into the live Apps Script project and tested.**
+**Manual export: verified working in the user's Apps Script environment. User later confirmed the automatic export worked. The repository script now exports only categories present in Supabase rows; this latest change still needs to be copied into the live Apps Script project and tested.**
 
 - Manual `exportPreviousBusinessDayNow` completed and logged 5 rows across two actual categories; the user reran it successfully after fixing the filter error.
 - First time-driven run failed with `You can't create a filter in a sheet that already has a filter.`
-- The checked-in `scripts/google-apps-script/Code.gs` now removes an existing filter before creating a new one. It also creates header-only sheets for scheduled categories on zero-row days and clears old category sheets to headers only when reruns return no rows for those categories.
-- Next acceptance checks for the newly updated script: (1) paste the updated `Code.gs` into the live Apps Script editor; (2) run a test business date with zero rows and confirm scheduled sheets contain headers only; (3) rerun a populated date and confirm existing sheets update without duplicates; (4) confirm the latest time-driven execution remains Completed. Folder labels reflect the schedule JSON, which has one-category as well as two-category dates.
+- The checked-in `scripts/google-apps-script/Code.gs` removes an existing filter before creating a new one. It creates sheets only for categories found in current Supabase rows; scheduled categories without rows do not get sheets. On rerun, generated category sheets absent from the current result are moved to Drive trash.
+- Next acceptance checks for the newly updated script: (1) paste the updated `Code.gs` into the live Apps Script editor; (2) rerun the 30 Oct 2026 export and confirm only `MASALA SPICES` and `SOAPS AND BODY WASH` remain if those are the only categories in Supabase rows; (3) test a zero-row date and confirm no category sheets are created; (4) confirm the latest time-driven execution remains Completed. Folder labels still reflect the schedule JSON.
 - Existing Sheets are static snapshots between exports; Supabase changes do not instantly propagate to Sheets.
 - Keep credentials in private Apps Script Script Properties. Do not commit the service-role key or put it in Android.
