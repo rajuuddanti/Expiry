@@ -31,3 +31,18 @@ This Apps Script exports only `public.expiry_entry_uploads` to Google Drive. It 
 - The script uses `session_start` to identify the 3 PM business-day window.
 - Test one day and compare its row count against a read-only query in Supabase before relying on the recurring trigger.
 - The default schedule JSON URL points at this repository's current branch; if the schedule file changes or the branch becomes private/renamed, set `SCHEDULE_JSON_URL` to the correct public raw-file URL.
+
+
+## Post-setup validation notes — 2026-10-31
+
+- The user successfully ran `exportPreviousBusinessDayNow` and saw 5 rows exported across two categories.
+- The first scheduled execution failed because a filter already existed on a sheet. In `writeSheet_`, remove an existing filter before creating a new one:
+  ```javascript
+  const existingFilter = sh.getFilter();
+  if (existingFilter) existingFilter.remove();
+  if (sh.getLastRow() > 1) sh.getRange(1, 1, sh.getLastRow(), headers.length).createFilter();
+  ```
+- After this edit in the Apps Script editor, the manual export succeeded again. Sync this fix into `scripts/google-apps-script/Code.gs` in the repository; the committed copy may still contain the old filter call.
+- Confirm a later **Time-driven** execution is marked **Completed** before relying on automation. Trigger timing is approximate.
+- Sheets are snapshots. Changes/deletions in Supabase are reflected only after a successful rerun for the same business-date window; rows with `session_start` after 3 PM are in the next business session.
+- Verify the folder name includes both categories from the schedule. Do not treat a folder name showing only one category as proof of the two-category requirement.
