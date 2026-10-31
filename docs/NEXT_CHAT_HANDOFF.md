@@ -149,3 +149,12 @@ User has confirmed the following export requirements. This is **planning only**;
 - Google Sheets is the selected output; users can download Excel files from Sheets.
 - Suggested implementation: Google Apps Script time-driven trigger + Supabase REST API + Drive/Sheets APIs. Store credentials in Script Properties; never put a service-role key in Android. Do not change the existing Supabase URL/publishable-key configuration.
 - Before implementation, inspect the current `expiry_entry_uploads` schema and find a reliable way to read the existing category schedule for the previous business date. Do not assume a schedule table name or invent schema. Verify API pagination, permissions/RLS, timezone boundaries, empty-day behavior, and duplicate/retry handling.
+
+
+## 2026-10-31 — Google Sheets export script ready for user setup
+
+- Script committed: `scripts/google-apps-script/Code.gs` (commit `18763802e0e34c68c7909b5411df9ca1492cb71c`).
+- Setup guide: `docs/GOOGLE_SHEETS_EXPORT_SETUP.md` (commit `dff51ad20cdb2316dba79d7f4c04e03e085232a0`).
+- Next action: user must create a standalone Google Apps Script project, paste Code.gs, create the Drive root folder, set Script Properties (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ROOT_FOLDER_ID`), run `exportPreviousBusinessDayNow` manually and verify output, then run `setupDailyTrigger`.
+- Do not ask the user to share or paste the service-role key in chat. Do not commit the key or place it in Android.
+- Before relying on automation, verify the manually exported row count against Supabase. The script has not yet been authorized or run against the user's live Supabase/Drive.
