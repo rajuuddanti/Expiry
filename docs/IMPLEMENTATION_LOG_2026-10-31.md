@@ -36,7 +36,14 @@ Branch: `feature/new-expiry-upload-table`
 - Service-role key stays only in the private Apps Script Script Properties. It must never be committed or included in the Android app.
 
 ### Repository synchronization note
-The fix was made in the user's Apps Script editor. At the time of this log, the committed `scripts/google-apps-script/Code.gs` still contains the old filter-creation line. Syncing the script fix into the repository is a separate code update and remains outstanding.
+The repository script was updated after the original log was written. Commit `ce85db629f30610280f802e9e18a76b70698637d` syncs the existing-filter removal and adds empty-day handling. The setup guide and implementation status were updated in commits `eb08403dcfedb8113ef9e70b84ababb88b7bb048` and `140c4c2060607e8a2fe2dfd3a1e11a9dd7f83842`.
+
+### Empty business-day behavior — repository update
+- Scheduled categories for the exported business date are seeded as groups even when Supabase returns zero rows, so their sheets are created with headers only.
+- Existing category sheets in that day's folder are also rewritten on rerun. If their category has no current rows, the sheet is cleared to headers only instead of retaining stale rows.
+- The export log records row count `0` and the categories/sheets refreshed. The script remains read-only toward Supabase.
+- The live Apps Script project must be updated by pasting the current repository `Code.gs`; a GitHub commit does not automatically update the deployed standalone Apps Script.
+- This new empty-day path has not yet been tested in the live Apps Script environment.
 
 ## Verification boundary
 This log records observed Apps Script output and the reported trigger failure. It does not claim that the automatic trigger has passed, nor that the folder naming requirement has been fully verified.
