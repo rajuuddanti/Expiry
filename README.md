@@ -31,6 +31,7 @@ Android app for recording product expiry checks across Mahalaxmi Mahamart stores
 - [Decisions and changelog](docs/DECISIONS_AND_CHANGELOG.md) — confirmed decisions and dated changes.
 - [Implementation log — 2026-10-26](docs/IMPLEMENTATION_LOG_2026-10-26.md)
 - [Implementation log — 2026-10-29](docs/IMPLEMENTATION_LOG_2026-10-29.md)
+- [Implementation log — 2026-10-31](docs/IMPLEMENTATION_LOG_2026-10-31.md)
 
 ## Important project guardrails
 
