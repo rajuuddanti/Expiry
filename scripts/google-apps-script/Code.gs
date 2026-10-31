@@ -44,11 +44,27 @@ function exportDate_(date){
   const year=getFolder_(root,date.slice(0,4));
   const month=getFolder_(year,Utilities.formatDate(localDate_(date),TZ,'MMMM'));
   const day=getFolder_(month,folderLabel);
+  // Seed scheduled categories so empty business days still create header-only sheets.
   const groups={};
-  rows.forEach(r=>{const k=String(r.category||'').trim()||'Uncategorised';(groups[k]||(groups[k]=[])).push(r);});
-  Object.keys(groups).sort().forEach(k=>writeSheet_(day,k,groups[k]));
-  logExport_(root,date,start,end,rows.length,Object.keys(groups),day.getId());
-  Logger.log(JSON.stringify({businessDate:date,rows:rows.length,scheduledCategories:scheduled,exportedCategories:Object.keys(groups),folder:folderLabel}));
+  scheduled.forEach(k=>{const name=clean_(k);if(name)groups[name]=[];});
+  rows.forEach(r=>{
+    const category=String(r.category||'').trim()||'Uncategorised';
+    const name=clean_(category);
+    if(!groups[name])groups[name]=[];
+    groups[name].push(r);
+  });
+  // Refresh existing sheets as empty when their category has no current rows.
+  const existingFiles=day.getFiles();
+  while(existingFiles.hasNext()){
+    const file=existingFiles.next();
+    if(file.getMimeType()===MimeType.GOOGLE_SHEETS && file.getName()!=='_export_log' && !groups[file.getName()]){
+      groups[file.getName()]=[];
+    }
+  }
+  const categories=Object.keys(groups).sort();
+  categories.forEach(k=>writeSheet_(day,k,groups[k]));
+  logExport_(root,date,start,end,rows.length,categories,day.getId());
+  Logger.log(JSON.stringify({businessDate:date,rows:rows.length,scheduledCategories:scheduled,exportedCategories:categories,folder:folderLabel}));
 }
 function fetchRows_(c,start,end){
   const out=[];let offset=0;
@@ -78,7 +94,9 @@ function writeSheet_(folder,category,rows){
     if(values.length)sh.getRange(i+2,1,values.length,headers.length).setValues(values);
   }
   sh.setFrozenRows(1);sh.getRange(1,1,1,headers.length).setFontWeight('bold');
-  if(sh.getLastRow()>1)sh.getDataRange().createFilter();
+  const existingFilter=sh.getFilter();
+  if(existingFilter)existingFilter.remove();
+  if(sh.getLastRow()>1)sh.getRange(1,1,sh.getLastRow(),headers.length).createFilter();
   sh.autoResizeColumns(1,headers.length);book.setSpreadsheetTimeZone(TZ);
 }
 function logExport_(root,date,start,end,count,categories,folderId){
