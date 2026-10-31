@@ -1,6 +1,6 @@
 # Next Chat Handoff — Mahalaxmi Expiry Manager
 
-Last updated: 2026-10-29 (Asia/Kolkata)
+Last updated: 2026-10-31 (Asia/Kolkata)
 
 ## Paste this into a new chat
 
@@ -158,3 +158,17 @@ User has confirmed the following export requirements. This is **planning only**;
 - Next action: user must create a standalone Google Apps Script project, paste Code.gs, create the Drive root folder, set Script Properties (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ROOT_FOLDER_ID`), run `exportPreviousBusinessDayNow` manually and verify output, then run `setupDailyTrigger`.
 - Do not ask the user to share or paste the service-role key in chat. Do not commit the key or place it in Android.
 - Before relying on automation, verify the manually exported row count against Supabase. The script has not yet been authorized or run against the user's live Supabase/Drive.
+
+
+## 2026-10-31 — current Google Sheets export state (latest)
+
+Continue with `docs/GOOGLE_SHEETS_EXPORT_SETUP.md` and the latest section in `docs/CURRENT_HANDOFF.md`.
+
+- Manual Apps Script export has succeeded twice, each reporting 5 rows across two actual categories.
+- The first scheduled run failed because `writeSheet_` tried to create a filter when a filter already existed. The user patched the Apps Script editor to remove an existing filter before creating a new one; the manual run passed after that change.
+- Important repository mismatch: the checked-in `scripts/google-apps-script/Code.gs` still has the old filter line. Sync the fix into the repository in a separate code commit when requested/appropriate.
+- Do not mark scheduled automation verified until a later **Time-driven** execution is **Completed** in Apps Script Executions. User may be moving the trigger to around 4 PM for testing; verify the actual trigger configuration rather than assuming.
+- To test whether deleted Supabase data disappears from Sheets, delete only a disposable test row and let a successful export rerun for that same business-date window. Existing Sheets do not live-sync to Supabase; a successful rerun rewrites the sheet from current query results.
+- Records created after 3 PM belong to the next session; the scheduled export reads the previous completed 3 PM-anchored session.
+- Confirm the Drive folder label includes both categories from the schedule. The last observed folder was `30 Oct MASALA SPICES`, so two-category naming still needs a specific check.
+- Never put the service-role key in chat, GitHub, or the Android app.
