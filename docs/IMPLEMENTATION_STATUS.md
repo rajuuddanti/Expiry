@@ -1,6 +1,6 @@
 # Implementation Status — Mahalaxmi Expiry Manager
 
-Last updated: 2026-10-28 (Asia/Kolkata)
+Last updated: 2026-10-31 (Asia/Kolkata)
 
 ## Branch context
 
@@ -49,3 +49,14 @@ Read `docs/CURRENT_HANDOFF.md` and `docs/EXPIRY_RETURN_RULES_AND_SCHEDULE.md` fo
 - Do not alter `public.MASTER` schema or Supabase URL/key configuration unless explicitly asked.
 - Do not reintroduce cloud expiry-entry uploads or old device/security tables without explicit user approval.
 - A GitHub commit is not a successful build or test.
+
+## Google Sheets export — status as of 2026-10-31
+
+**Manual export: verified working in the user's Apps Script environment. Automatic trigger: not yet verified after the fix.**
+
+- Manual `exportPreviousBusinessDayNow` completed and logged 5 rows across two actual categories; the user reran it successfully after fixing the filter error.
+- First time-driven run failed with `You can't create a filter in a sheet that already has a filter.`
+- User's Apps Script editor now removes an existing filter before creating a new one. The checked-in `scripts/google-apps-script/Code.gs` has not yet been updated with this fix and remains out of sync.
+- Next acceptance checks: (1) next time-driven execution status is Completed; (2) scheduled folder name contains both scheduled categories; (3) rerun updates existing sheet contents without duplicate sheets; (4) deletion of a disposable test row is reflected only after a successful rerun for that same business-date window.
+- Existing Sheets are static snapshots between exports; Supabase changes do not instantly propagate to Sheets.
+- Keep credentials in private Apps Script Script Properties. Do not commit the service-role key or put it in Android.
