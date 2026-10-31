@@ -141,9 +141,9 @@ User has confirmed the following export requirements. This is **planning only**;
 - Export source is only `public.expiry_entry_uploads` (the Supabase table shown by the user).
 - Destination is Google Drive under `MahaMart Expiry Reports/YYYY/Month/`.
 - Run at 3:15 PM Asia/Kolkata and export only the previous completed 3 PM-anchored business day: prior business date 15:00 through current export date 14:59:59.
-- Create exactly one daily folder, named with the date and the **two categories scheduled for that previous business date**. Example: `11 Nov Beverages-Biscuits`.
+- Create exactly one daily folder, named with the date and the scheduled category names present for that previous business date (the schedule JSON has some one-category dates and some two-category dates). Example: `11 Nov Beverages-Biscuits`.
 - The folder-name categories must come from the existing schedule, not from the actual category values submitted by store staff.
-- Inside the daily folder, create one Google Sheet for every distinct category actually present in that day's source rows. Combine all stores in each sheet and preserve the `location` field.
+- Inside the daily folder, create one Google Sheet for every category actually present in the day's source rows, plus header-only sheets for scheduled categories that have no rows. On reruns, refresh existing category sheets to headers only if the category has no current rows, avoiding stale data on empty days. Combine all stores in each sheet and preserve the `location` field.
 - If an unexpected category is entered, export it as its own sheet in the same folder but do not include it in the folder name. Sheet generation must be dynamic, not restricted to the two scheduled categories.
 - Preserve all source columns/values, including deletion status; do not mutate/delete Supabase data. Make retries idempotent to prevent duplicate folders/sheets.
 - Google Sheets is the selected output; users can download Excel files from Sheets.
@@ -172,3 +172,11 @@ Continue with `docs/GOOGLE_SHEETS_EXPORT_SETUP.md` and the latest section in `do
 - Records created after 3 PM belong to the next session; the scheduled export reads the previous completed 3 PM-anchored session.
 - Confirm the Drive folder label includes both categories from the schedule. The last observed folder was `30 Oct MASALA SPICES`, so two-category naming still needs a specific check.
 - Never put the service-role key in chat, GitHub, or the Android app.
+
+
+## 2026-10-31 — empty-day export behavior and filter fix
+
+- Repository script `scripts/google-apps-script/Code.gs` now removes an existing sheet filter before creating a new one and supports zero-row business days with header-only category sheets.
+- Existing category sheets are refreshed to headers only when reruns return no rows for that category.
+- Commit: `ce85db629f30610280f802e9e18a76b70698637d`.
+- The updated repository script must still be copied into the live standalone Apps Script editor and tested with a zero-row business date. A GitHub commit does not deploy Apps Script automatically.
