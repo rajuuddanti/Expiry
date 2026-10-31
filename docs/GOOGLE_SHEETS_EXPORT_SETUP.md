@@ -7,9 +7,9 @@ This Apps Script exports only `public.expiry_entry_uploads` to Google Drive. It 
 - Exports the previous completed business-day session: previous date 3:00 PM IST inclusive to export date 3:00 PM IST exclusive.
 - Drive path: `MahaMart Expiry Reports / YYYY / Month / D MMM <two scheduled categories>`.
 - The folder-name categories come from `app/src/main/assets/inspection_schedule.json` for the exported business date, with explanatory text in parentheses removed.
-- Creates one Google Sheet per category actually found in the exported rows; all stores are combined and the `location` column is retained. Scheduled categories also get a header-only sheet when there are zero rows for that category. On reruns, existing category sheets with no current rows are rewritten as header-only sheets so stale data is not left behind.
+- Creates one Google Sheet only for each category actually present in the Supabase rows for that business-day window; all stores are combined and the `location` column is retained. Scheduled categories do not get sheets unless Supabase contains rows for them. On reruns, generated category sheets absent from the current Supabase result are moved to Drive trash so stale/extra category files are not left behind.
 - Unexpected categories are exported in their own sheet but do not change the folder name.
-- Exports all table columns, including `is_deleted`. Empty business days create the dated folder, header-only sheets for categories scheduled that day (and clear any previously existing category sheets to headers only), and an export log row with `row_count = 0`. The script does not mutate Supabase.
+- Exports all table columns, including `is_deleted`. Empty business days create the dated folder and an export log row with `row_count = 0`, but no category sheets. Any old generated category sheets in that daily folder are moved to Drive trash on rerun. The script does not mutate Supabase.
 - Pagination is handled in 1,000-row pages. Reruns reuse the same folder and category sheet names and replace their contents. An `_export_log` spreadsheet records the last export per business date.
 
 ## One-time setup
@@ -42,7 +42,7 @@ This Apps Script exports only `public.expiry_entry_uploads` to Google Drive. It 
   if (existingFilter) existingFilter.remove();
   if (sh.getLastRow() > 1) sh.getRange(1, 1, sh.getLastRow(), headers.length).createFilter();
   ```
-- The filter fix is now synced into `scripts/google-apps-script/Code.gs` in the repository. The script also seeds scheduled categories for empty days and rewrites existing category sheets with headers only when no current rows remain.
+- The filter fix is synced into `scripts/google-apps-script/Code.gs`. The script exports only categories present in Supabase rows and moves generated category sheets to trash if they no longer occur in the current result.
 - Confirm a later **Time-driven** execution is marked **Completed** before relying on automation. Trigger timing is approximate.
 - Sheets are snapshots. Changes/deletions in Supabase are reflected only after a successful rerun for the same business-date window; rows with `session_start` after 3 PM are in the next business session.
 - Folder labels use whatever category entries actually exist for that date in `inspection_schedule.json`; some dates in the current JSON contain one scheduled category and others contain two. The script does not invent a second category.
