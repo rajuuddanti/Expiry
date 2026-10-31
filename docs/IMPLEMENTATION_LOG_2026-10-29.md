@@ -99,3 +99,14 @@
 - Avoid duplicate daily folders/sheets on retries; log successful exports and make retry behavior idempotent.
 - Google Sheets is the selected output. User can download a sheet as Microsoft Excel (.xlsx) from Google Sheets when needed.
 - Status: requirements clarified only. Google Apps Script / Drive automation has **not** been implemented or verified by this documentation update. Store credentials securely in Apps Script properties; never put a Supabase service-role key in the Android app. Preserve existing Android/Supabase configuration.
+
+
+## 2026-10-31 — Google Sheets export script added
+
+- Added standalone Google Apps Script source at `scripts/google-apps-script/Code.gs`.
+- Added setup instructions at `docs/GOOGLE_SHEETS_EXPORT_SETUP.md`.
+- Script reads only `public.expiry_entry_uploads`, paginates at 1,000 rows, filters by the prior completed 3 PM IST session using `session_start`, and groups returned rows by actual `category`.
+- Folder name uses the two scheduled categories from `app/src/main/assets/inspection_schedule.json` for the exported business date; unexpected actual categories still receive their own sheets but do not change the folder name.
+- All stores are combined per category sheet; source fields including `is_deleted` are retained. Re-runs reuse existing date folders and named category spreadsheets and replace sheet contents. Export log tracks the most recent result per business date.
+- Script commits: `18763802e0e34c68c7909b5411df9ca1492cb71c`; setup guide commit: `dff51ad20cdb2316dba79d7f4c04e03e085232a0`.
+- Status: code committed, but not yet installed/authorized in the user's Google Apps Script account and not tested against live Supabase or Drive. Follow the setup guide, run a manual export first, verify row counts, then create the daily trigger. Google time-driven triggers run approximately around the selected minute, not guaranteed exactly at 3:15 PM.
