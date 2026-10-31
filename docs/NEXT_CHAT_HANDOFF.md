@@ -125,3 +125,10 @@ Do not report build/device verification as complete until it has actually been c
 - Code commit: `8493393283200b5034f5b76007b778c5ad1b6b03`.
 - Filename pattern: `Store_Category-Date.csv`; multiple categories become `Multiple-Categories`, missing category becomes `Uncategorised`. CSV contents remain unchanged.
 - Confirm GitHub Actions and test the shared/exported filename on a device before treating this as verified.
+
+## 2026-10-31 — important business-day schedule fix
+
+- Code commit: `43ceba4271faa69fad0703f54b40907d43e77b4d`.
+- Scan screen category schedule now uses the 3 PM-anchored `currentSessionDate`. Before 3 PM local time it uses yesterday; from 3 PM onward it uses today.
+- This was a bug where the schedule used `LocalDate.now()` and could show the next date's categories before the business day had rolled over.
+- Verify GitHub Actions and test category display before/after 3 PM. Do not alter the schedule calendar to work around this date-selection bug.
