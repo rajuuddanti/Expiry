@@ -1,8 +1,18 @@
 # Decisions and Changelog
 
-Last updated: 2026-10-28 (Asia/Kolkata)
+Last updated: 2026-10-31 (Asia/Kolkata)
 
 This file separates user-confirmed decisions from requirements that still need implementation or verification. For the current full state, read `docs/CURRENT_HANDOFF.md`.
+
+## 2026-10-31 — Google Sheets export empty-day and filter fixes
+
+- Updated `scripts/google-apps-script/Code.gs` to remove an existing sheet filter before recreating it, fixing the previously observed duplicate-filter error.
+- Empty export days now create header-only sheets for the scheduled categories found in `inspection_schedule.json`.
+- Existing category sheets are refreshed on rerun; if a category no longer has rows, its sheet is left with headers only rather than stale data.
+- Supabase remains read-only for this export. No Android app or database changes were made.
+- Code commit: `ce85db629f30610280f802e9e18a76b70698637d`.
+- Documentation commits: setup guide `eb08403dcfedb8113ef9e70b84ababb88b7bb048`; implementation status `140c4c2060607e8a2fe2dfd3a1e11a9dd7f83842`; implementation log updated separately.
+- Still required: copy the updated script into the live standalone Apps Script editor and test a zero-row business date. Some schedule dates contain only one category, so the script uses the actual schedule entries and does not invent a second category.
 
 ## Confirmed core decisions
 
