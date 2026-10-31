@@ -132,3 +132,16 @@ User prefers direct, informal “bro” communication and concrete step-by-step 
 - Inspection schedule data itself was not changed.
 - Code commit: `43ceba4271faa69fad0703f54b40907d43e77b4d`.
 - Build/device verification pending.
+
+
+## 2026-10-31 — Google Sheets export requirements confirmed (not implemented yet)
+
+- Source: export only rows from `public.expiry_entry_uploads`.
+- Destination: Google Drive, nested by year and month, with one folder per business day.
+- Daily schedule: 3:15 PM Asia/Kolkata; export the previous completed 3 PM-anchored business day (15:00 to 14:59:59 the following day).
+- Folder naming: business date plus the **two scheduled categories** for that business day, e.g. `11 Nov Beverages-Biscuits`. Use the existing schedule as the source of those two category names; do not derive the folder name from categories entered by store staff.
+- Sheets: dynamically create one Google Sheet per actual category present in the day's source rows. All stores are combined in each category sheet; retain the location/store column.
+- Unexpected categories entered by store staff must still be exported into their own sheet in the same daily folder, but must not be added to the folder name. Do not hardcode the two scheduled categories as the only exportable categories.
+- Preserve all source-table columns/values (including deletion status) and do not mutate/delete Supabase data. Prevent duplicate folders/files on retries.
+- Google Sheets is preferred; Excel download can be done from Google Sheets.
+- Status: this is a confirmed requirement, not an implemented feature. Any automation must keep credentials in Apps Script properties and must not expose a Supabase service-role key in Android. Do not change existing Supabase config.
