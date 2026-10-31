@@ -52,11 +52,11 @@ Read `docs/CURRENT_HANDOFF.md` and `docs/EXPIRY_RETURN_RULES_AND_SCHEDULE.md` fo
 
 ## Google Sheets export — status as of 2026-10-31
 
-**Manual export: verified working in the user's Apps Script environment. Automatic trigger: not yet verified after the fix.**
+**Manual export: verified working in the user's Apps Script environment. User later confirmed the automatic export worked. Empty-day behavior and the filter fix are now committed in the repository script; these new changes still need to be copied into the live Apps Script project and tested.**
 
 - Manual `exportPreviousBusinessDayNow` completed and logged 5 rows across two actual categories; the user reran it successfully after fixing the filter error.
 - First time-driven run failed with `You can't create a filter in a sheet that already has a filter.`
-- User's Apps Script editor now removes an existing filter before creating a new one. The checked-in `scripts/google-apps-script/Code.gs` has not yet been updated with this fix and remains out of sync.
-- Next acceptance checks: (1) next time-driven execution status is Completed; (2) scheduled folder name contains both scheduled categories; (3) rerun updates existing sheet contents without duplicate sheets; (4) deletion of a disposable test row is reflected only after a successful rerun for that same business-date window.
+- The checked-in `scripts/google-apps-script/Code.gs` now removes an existing filter before creating a new one. It also creates header-only sheets for scheduled categories on zero-row days and clears old category sheets to headers only when reruns return no rows for those categories.
+- Next acceptance checks for the newly updated script: (1) paste the updated `Code.gs` into the live Apps Script editor; (2) run a test business date with zero rows and confirm scheduled sheets contain headers only; (3) rerun a populated date and confirm existing sheets update without duplicates; (4) confirm the latest time-driven execution remains Completed. Folder labels reflect the schedule JSON, which has one-category as well as two-category dates.
 - Existing Sheets are static snapshots between exports; Supabase changes do not instantly propagate to Sheets.
 - Keep credentials in private Apps Script Script Properties. Do not commit the service-role key or put it in Android.
