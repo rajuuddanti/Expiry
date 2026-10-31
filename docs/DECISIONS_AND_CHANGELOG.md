@@ -154,3 +154,16 @@ User prefers direct, informal “bro” communication and concrete step-by-step 
 - All store rows remain combined in each category sheet; table columns including deletion status are retained. Export retries reuse existing folders/sheets and update an export log.
 - Commit IDs: script `18763802e0e34c68c7909b5411df9ca1492cb71c`; setup guide `dff51ad20cdb2316dba79d7f4c04e03e085232a0`.
 - Verification status: not yet installed in Google Apps Script, authorized, or tested against live Supabase/Drive. Follow setup guide and verify one manual export before enabling the daily trigger. Store the service-role key only in the private Apps Script project's Script Properties; never commit it or put it in Android.
+
+
+## 2026-10-31 — Google Sheets export live test and filter fix
+
+- The user installed the standalone Apps Script, configured its Script Properties, authorized it, and created the daily time-driven trigger.
+- Manual function `exportPreviousBusinessDayNow` completed successfully and logged **5 rows exported** across two actual categories. This confirms a successful manual run against the configured Supabase/Drive setup at that point; it does not prove the automatic trigger succeeds.
+- The first automatic time-driven run (around 3:19 PM IST on 2026-10-31) failed with: `You can't create a filter in a sheet that already has a filter.`
+- The user fixed the Apps Script editor's `writeSheet_` logic by removing any existing filter before creating a new one. After this edit, the manual export completed again with **5 rows exported**. The fix has not yet been synced back into the repository's `scripts/google-apps-script/Code.gs`; the checked-in copy still needs that change.
+- Next verification: inspect Apps Script **Executions** after the next time-driven run and confirm the trigger run is **Completed**. If testing the trigger in the 4–5 PM window, delete the old trigger and recreate it by running `setupDailyTrigger` once after changing the hour; Apps Script timing is approximate, not exact.
+- Existing Sheets are snapshots, not live links to Supabase. A Supabase deletion does not immediately change a Sheet. A later successful export rewrites the existing category sheet for that business-date window from the rows currently returned by Supabase, so a deleted test row should disappear on the next successful export for that same window. Only use disposable test rows for this check.
+- Script uses `session_start` for the 3 PM–to–3 PM business window. Rows created after 3 PM belong to the new session and will not be included in the export for the previous session.
+- The last manual output showed a folder named `30 Oct MASALA SPICES`. Confirm the folder name contains both categories scheduled for that date; if only one category is returned from the schedule JSON, investigate before calling the two-category naming requirement verified.
+- Security: keep the Supabase service-role key only in Apps Script Script Properties. Never commit it or add it to Android.
