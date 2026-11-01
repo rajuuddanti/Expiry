@@ -29,5 +29,6 @@ data class ExpiryEntryEntity(
     val sessionStart: String,
     val createdAt: String,
     val deletedAt: String? = null,
-    val syncStatus: String = "PENDING"
+    val syncStatus: String = "PENDING",
+    val expiry: String = "YES"
 )
