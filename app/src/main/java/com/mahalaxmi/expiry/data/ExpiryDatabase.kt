@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [ProductMasterEntity::class, ExpiryEntryEntity::class], version = 4, exportSchema = false)
+@Database(entities = [ProductMasterEntity::class, ExpiryEntryEntity::class], version = 5, exportSchema = false)
 abstract class ExpiryDatabase : RoomDatabase() {
     abstract fun expiryDao(): ExpiryDao
     companion object {
@@ -32,11 +32,16 @@ abstract class ExpiryDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE expiry_entries ADD COLUMN expiry TEXT NOT NULL DEFAULT 'YES'")
             }
         }
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE expiry_entries ADD COLUMN noExpiryCategory TEXT NOT NULL DEFAULT ''")
+            }
+        }
         @Volatile private var INSTANCE: ExpiryDatabase? = null
         fun getInstance(context: Context): ExpiryDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(context.applicationContext, ExpiryDatabase::class.java, "mahalaxmi_expiry.db")
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { INSTANCE = it }
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build().also { INSTANCE = it }
             }
     }
 }
