@@ -821,6 +821,20 @@ class MainActivity : ComponentActivity() {
                                 Column(Modifier.fillMaxSize().padding(16.dp)) {
                                     Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                                     Text("Product master import and local data", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
+                                    Button(onClick = {
+                                        if (store.isBlank()) message = "Please select your store first."
+                                        else scope.launch {
+                                            val now = LocalDateTime.now(IndiaZone)
+                                            val sessionDate = if (now.hour < 15) now.toLocalDate().minusDays(1) else now.toLocalDate()
+                                            val session = sessionDate.atTime(15, 0).atZone(IndiaZone).toOffsetDateTime().toString()
+                                            val assignedCategories = todaySchedule.map { it.baseCategory }.distinct().joinToString(" | ").ifBlank { "Unspecified" }
+                                            dao.insertEntry(ExpiryEntryEntity(id = java.util.UUID.randomUUID().toString(), store = store, skuCode = "", productName = "NO EXPIRY FOUND", scannedCode = "", category = assignedCategories, quantity = 0, expiryDate = "", sessionStart = session, createdAt = now.atZone(IndiaZone).toOffsetDateTime().toString(), expiry = "NO EXPIRY"))
+                                            message = "NO EXPIRY FOUND saved in History."
+                                            try { val result = syncRepository.uploadPendingEntries(); uploadMessage = result.message; message = "NO EXPIRY FOUND saved. " + result.message }
+                                            catch (error: Exception) { uploadMessage = "Confirmation saved locally; upload pending."; val retryRequest = OneTimeWorkRequestBuilder<ExpirySyncWorker>().setConstraints(networkConstraints).build(); WorkManager.getInstance(applicationContext).enqueueUniqueWork("expiry-auto-upload-retry", ExistingWorkPolicy.KEEP, retryRequest) }
+                                        }
+                                    }, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))) { Text("NO EXPIRY FOUND", fontWeight = FontWeight.Bold) }
+                                    if (message.isNotBlank()) Text(message, color = MahalaxmiRed, fontSize = 12.sp)
                                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                             Text("SUPABASE SYNC", fontWeight = FontWeight.Bold, color = MahalaxmiRed)
