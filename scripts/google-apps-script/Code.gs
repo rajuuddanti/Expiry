@@ -47,7 +47,10 @@ function exportDate_(date){
   // Only create sheets for categories that actually occur in the Supabase rows.
   const groups={};
   rows.forEach(r=>{
-    const category=String(r.category||'').trim()||'Uncategorised';
+    // Keep NO EXPIRY confirmations out of normal product-category sheets.
+    // Export them to a dedicated sheet so store/date/status remain auditable.
+    const isNoExpiry=String(r.expiry||'').trim().toUpperCase()==='NO EXPIRY';
+    const category=isNoExpiry?'NO EXPIRY':(String(r.category||'').trim()||'Uncategorised');
     const name=clean_(category);
     if(!groups[name])groups[name]=[];
     groups[name].push(r);
