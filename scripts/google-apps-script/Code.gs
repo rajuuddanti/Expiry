@@ -44,15 +44,15 @@ function exportDate_(date){
   const year=getFolder_(root,date.slice(0,4));
   const month=getFolder_(year,Utilities.formatDate(localDate_(date),TZ,'MMMM'));
   const day=getFolder_(month,folderLabel);
-  // Group normal rows by their saved category. NO EXPIRY confirmations
-  // keep category blank in the row, but are exported into this business
-  // day's scheduled category file instead of creating a separate file.
+  // Group rows by their saved category. NO EXPIRY confirmations keep
+  // category blank in the row, but are routed into the day's main scheduled
+  // category file/sheet (first category in the schedule), never a third file.
   const groups={};
-  const noExpiryDestination=scheduled.length?scheduled[0]:'Uncategorised';
+  const mainCategory=scheduled.length?scheduled[0]:'Uncategorised';
   rows.forEach(r=>{
     const isNoExpiry=String(r.expiry||'').trim().toUpperCase()==='NO EXPIRY';
     const rowCategory=String(r.category||'').trim();
-    const category=isNoExpiry?noExpiryDestination:(rowCategory||'Uncategorised');
+    const category=isNoExpiry?mainCategory:(rowCategory||'Uncategorised');
     const name=clean_(category);
     if(!groups[name])groups[name]=[];
     groups[name].push(r);
