@@ -798,14 +798,19 @@ class MainActivity : ComponentActivity() {
                                                 Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                                                     Column(Modifier.padding(12.dp)) {
                                                         Text(item.productName, fontWeight = FontWeight.Bold)
-                                                        Text("SKU code: ${item.skuCode}")
-                                                        Text("Ean/SKU Scanned: ${item.scannedCode}")
-                                                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                                            Text("Qty: ${item.quantity}", color = MahalaxmiRed, fontWeight = FontWeight.Bold)
-                                                            Spacer(Modifier.width(12.dp))
-                                                            Text("Expiry: ${item.expiryDate}")
+                                                        if (item.expiry == "NO EXPIRY") {
+                                                            Text("Status: NO EXPIRY FOUND", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                                                            Text("Checked categories: ${item.category}")
+                                                        } else {
+                                                            Text("SKU code: ${item.skuCode}")
+                                                            Text("Ean/SKU Scanned: ${item.scannedCode}")
+                                                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                                Text("Qty: ${item.quantity}", color = MahalaxmiRed, fontWeight = FontWeight.Bold)
+                                                                Spacer(Modifier.width(12.dp))
+                                                                Text("Expiry: ${item.expiryDate}")
+                                                            }
+                                                            Text("Category: ${item.category.ifBlank { "Pending verification" }}")
                                                         }
-                                                        Text("Category: ${item.category.ifBlank { "Pending verification" }}")
                                                         TextButton(onClick = { pendingDelete = item }) {
                                                             Text("Delete entry", color = MahalaxmiRed)
                                                         }
