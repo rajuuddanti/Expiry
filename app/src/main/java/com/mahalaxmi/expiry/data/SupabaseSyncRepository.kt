@@ -44,6 +44,7 @@ class SupabaseSyncRepository(context: Context, private val dao: ExpiryDao) {
                     put("expiry_date", if (entry.expiry == "NO EXPIRY") JSONObject.NULL else entry.expiryDate)
                     put("is_deleted", entry.deletedAt != null)
                     put("expiry", entry.expiry)
+                    put("no_expiry_category", entry.noExpiryCategory)
                     put("category", entry.category)
                     put("date", runCatching { java.time.OffsetDateTime.parse(entry.createdAt).toLocalDate().toString() }.getOrDefault(entry.createdAt.take(10)))
                     put("time", runCatching { java.time.OffsetDateTime.parse(entry.createdAt).toLocalTime().withNano(0).toString() }.getOrDefault(""))
