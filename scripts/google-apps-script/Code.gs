@@ -89,7 +89,7 @@ function writeSheet_(folder,category,rows){
   if(found.hasNext()){const f=found.next();book=SpreadsheetApp.openById(f.getId());while(found.hasNext())found.next().setTrashed(true);}
   else{book=SpreadsheetApp.create(name);DriveApp.getFileById(book.getId()).moveTo(folder);}
   const sh=book.getSheets()[0];sh.setName('Expiry Entries');sh.clearContents();
-  const headers=['id','location','skucode','skuname','ean_sku_scanned','qty','expiry_date','category','date','time','is_deleted','created_at','deleted_at','session_start','uploaded_at'];
+  const headers=['id','location','skucode','skuname','ean_sku_scanned','qty','expiry_date','expiry','category','date','time','is_deleted','created_at','deleted_at','session_start','uploaded_at'];
   sh.getRange(1,1,1,headers.length).setValues([headers]);
   for(let i=0;i<rows.length;i+=1500){
     const values=rows.slice(i,i+1500).map(r=>headers.map(h=>r[h]===null||r[h]===undefined?'':r[h]));
