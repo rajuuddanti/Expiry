@@ -104,14 +104,14 @@ class MainActivity : ComponentActivity() {
         fun escape(value: String): String = "\"" + value.replace("\"", "\"\"").replace("\\n", " ") + "\""
         fun parsedTimestamp(value: String): java.time.OffsetDateTime? =
             runCatching { java.time.OffsetDateTime.parse(value) }.getOrNull()
-        val header = listOf("Location", "SKU Code", "SKU Name", "Ean/SKU Scanned", "Qty", "Expiry Date", "Category", "Date", "Time")
+        val header = listOf("Location", "SKU Code", "SKU Name", "Ean/SKU Scanned", "Qty", "Expiry Date", "Category", "Date", "Time", "Expiry Status")
         val rows = entries.map { entry ->
             val timestamp = parsedTimestamp(entry.createdAt)
             listOf(
                 entry.store, entry.skuCode, entry.productName, entry.scannedCode,
                 entry.quantity.toString(), entry.expiryDate, entry.category,
                 timestamp?.toLocalDate()?.toString() ?: entry.createdAt.take(10),
-                timestamp?.toLocalTime()?.withNano(0)?.toString() ?: ""
+                timestamp?.toLocalTime()?.withNano(0)?.toString() ?: "", entry.expiry
             )
         }
         val csv = (listOf(header) + rows).joinToString("\r\n") { row -> row.joinToString(",") { escape(it) } }
