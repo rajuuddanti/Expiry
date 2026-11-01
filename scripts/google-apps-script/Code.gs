@@ -44,16 +44,17 @@ function exportDate_(date){
   const year=getFolder_(root,date.slice(0,4));
   const month=getFolder_(year,Utilities.formatDate(localDate_(date),TZ,'MMMM'));
   const day=getFolder_(month,folderLabel);
-  // Group rows by their saved category. NO EXPIRY confirmations keep
-  // category blank in the row, but are routed into the day's main scheduled
-  // category file/sheet (first category in the schedule), never a third file.
+  // NO EXPIRY confirmations go to a separate CSV; category selection is saved separately.
   const groups={};
-  const mainCategory=scheduled.length?scheduled[0]:'Uncategorised';
+  const noExpiryRows=[];
   rows.forEach(r=>{
     const isNoExpiry=String(r.expiry||'').trim().toUpperCase()==='NO EXPIRY';
-    const rowCategory=String(r.category||'').trim();
-    const category=isNoExpiry?mainCategory:(rowCategory||'Uncategorised');
-    const name=clean_(category);
+    if(isNoExpiry){
+      if(String(r.is_deleted).toLowerCase()!=='true') noExpiryRows.push([String(r.location||''),date,String(r.no_expiry_category||'')]);
+      return;
+    }
+    const rowCategory=String(r.category||'').trim()||'Uncategorised';
+    const name=clean_(rowCategory);
     if(!groups[name])groups[name]=[];
     groups[name].push(r);
   });
@@ -70,9 +71,20 @@ function exportDate_(date){
     }
   }
   categories.forEach(k=>writeSheet_(day,k,groups[k]));
+  writeNoExpiryCsv_(day,noExpiryRows);
   logExport_(root,date,start,end,rows.length,categories,day.getId());
   Logger.log(JSON.stringify({businessDate:date,rows:rows.length,scheduledCategories:scheduled,exportedCategories:categories,folder:folderLabel}));
 }
+
+function writeNoExpiryCsv_(folder,rows){
+  const esc=v=>'"'+String(v===null||v===undefined?'':v).replace(/"/g,'""')+'"';
+  const lines=[['Store name','Date','No expiry'].map(esc).join(',')];
+  rows.forEach(row=>lines.push(row.map(esc).join(',')));
+  const old=folder.getFilesByName('no expiry.csv');
+  while(old.hasNext())old.next().setTrashed(true);
+  folder.createFile('no expiry.csv',lines.join('\\r\\n'),MimeType.CSV);
+}
+
 function fetchRows_(c,start,end){
   const out=[];let offset=0;
   while(true){
