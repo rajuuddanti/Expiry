@@ -205,6 +205,8 @@ class MainActivity : ComponentActivity() {
             var storePinError by remember { mutableStateOf("") }
             var showStorePinDialog by remember { mutableStateOf(false) }
             var showStoreNameDialog by remember { mutableStateOf(false) }
+            var showNoExpiryCategoryDialog by remember { mutableStateOf(false) }
+            var selectedNoExpiryCategory by remember { mutableStateOf("") }
             var categoryMismatchPending by remember { mutableStateOf(false) }
             var screen by remember { mutableStateOf(AppScreen.Scan) }
             var code by remember { mutableStateOf("") }
@@ -263,6 +265,35 @@ class MainActivity : ComponentActivity() {
                         category = matchedProduct.category.orEmpty()
                         // MASTER has no dedicated EAN column, so leave EAN blank unless a
                         // genuine barcode mapping is available from a separate source.
+                    }
+                }
+            }
+
+            fun saveNoExpiryEntry(selectedCategory: String) {
+                if (store.isBlank()) {
+                    message = "Please select your store first."
+                    return
+                }
+                scope.launch {
+                    val now = LocalDateTime.now(IndiaZone)
+                    val sessionDate = if (now.hour < 15) now.toLocalDate().minusDays(1) else now.toLocalDate()
+                    val session = sessionDate.atTime(15, 0).atZone(IndiaZone).toOffsetDateTime().toString()
+                    dao.insertEntry(ExpiryEntryEntity(
+                        id = java.util.UUID.randomUUID().toString(), store = store,
+                        skuCode = "", productName = "", scannedCode = "", category = "",
+                        quantity = 0, expiryDate = "", sessionStart = session,
+                        createdAt = now.atZone(IndiaZone).toOffsetDateTime().toString(),
+                        expiry = "NO EXPIRY", noExpiryCategory = selectedCategory
+                    ))
+                    message = "NO EXPIRY FOUND for $selectedCategory saved in History."
+                    try {
+                        val result = syncRepository.uploadPendingEntries()
+                        uploadMessage = result.message
+                        message = "NO EXPIRY FOUND for $selectedCategory saved. " + result.message
+                    } catch (error: Exception) {
+                        uploadMessage = "Confirmation saved locally; upload pending."
+                        val retryRequest = OneTimeWorkRequestBuilder<ExpirySyncWorker>().setConstraints(networkConstraints).build()
+                        WorkManager.getInstance(applicationContext).enqueueUniqueWork("expiry-auto-upload-retry", ExistingWorkPolicy.KEEP, retryRequest)
                     }
                 }
             }
@@ -827,17 +858,47 @@ class MainActivity : ComponentActivity() {
                                     Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                                     Text("Product master import and local data", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
                                     Button(onClick = {
-                                        if (store.isBlank()) message = "Please select your store first."
-                                        else scope.launch {
-                                            val now = LocalDateTime.now(IndiaZone)
-                                            val sessionDate = if (now.hour < 15) now.toLocalDate().minusDays(1) else now.toLocalDate()
-                                            val session = sessionDate.atTime(15, 0).atZone(IndiaZone).toOffsetDateTime().toString()
-                                            dao.insertEntry(ExpiryEntryEntity(id = java.util.UUID.randomUUID().toString(), store = store, skuCode = "", productName = "", scannedCode = "", category = "", quantity = 0, expiryDate = "", sessionStart = session, createdAt = now.atZone(IndiaZone).toOffsetDateTime().toString(), expiry = "NO EXPIRY"))
-                                            message = "NO EXPIRY FOUND saved in History."
-                                            try { val result = syncRepository.uploadPendingEntries(); uploadMessage = result.message; message = "NO EXPIRY FOUND saved. " + result.message }
-                                            catch (error: Exception) { uploadMessage = "Confirmation saved locally; upload pending."; val retryRequest = OneTimeWorkRequestBuilder<ExpirySyncWorker>().setConstraints(networkConstraints).build(); WorkManager.getInstance(applicationContext).enqueueUniqueWork("expiry-auto-upload-retry", ExistingWorkPolicy.KEEP, retryRequest) }
+                                        if (store.isBlank()) {
+                                            message = "Please select your store first."
+                                        } else {
+                                            val options = todaySchedule.map { it.category }.distinctBy { it.uppercase() }
+                                            when {
+                                                options.isEmpty() -> message = "No category is scheduled for this business day."
+                                                options.size == 1 -> saveNoExpiryEntry(options.first())
+                                                else -> {
+                                                    selectedNoExpiryCategory = options.first()
+                                                    showNoExpiryCategoryDialog = true
+                                                }
+                                            }
                                         }
                                     }, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))) { Text("NO EXPIRY FOUND", fontWeight = FontWeight.Bold) }
+                                    if (showNoExpiryCategoryDialog) {
+                                        val options = todaySchedule.map { it.category }.distinctBy { it.uppercase() }
+                                        AlertDialog(
+                                            onDismissRequest = { showNoExpiryCategoryDialog = false },
+                                            title = { Text("Which category has no expiry?") },
+                                            text = {
+                                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    options.forEach { option ->
+                                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                                                            RadioButton(selected = selectedNoExpiryCategory == option, onClick = { selectedNoExpiryCategory = option })
+                                                            Text(option, modifier = Modifier.padding(start = 8.dp, top = 12.dp))
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            confirmButton = {
+                                                TextButton(onClick = {
+                                                    val chosen = selectedNoExpiryCategory
+                                                    showNoExpiryCategoryDialog = false
+                                                    if (chosen.isNotBlank()) saveNoExpiryEntry(chosen)
+                                                }) { Text("CONFIRM") }
+                                            },
+                                            dismissButton = {
+                                                TextButton(onClick = { showNoExpiryCategoryDialog = false }) { Text("CANCEL") }
+                                            }
+                                        )
+                                    }
                                     if (message.isNotBlank()) Text(message, color = MahalaxmiRed, fontSize = 12.sp)
                                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
