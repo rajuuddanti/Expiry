@@ -44,13 +44,15 @@ function exportDate_(date){
   const year=getFolder_(root,date.slice(0,4));
   const month=getFolder_(year,Utilities.formatDate(localDate_(date),TZ,'MMMM'));
   const day=getFolder_(month,folderLabel);
-  // Only create sheets for categories that actually occur in the Supabase rows.
+  // Group normal rows by their saved category. NO EXPIRY confirmations
+  // keep category blank in the row, but are exported into this business
+  // day's scheduled category file instead of creating a separate file.
   const groups={};
+  const noExpiryDestination=scheduled.length?scheduled[0]:'Uncategorised';
   rows.forEach(r=>{
-    // Keep NO EXPIRY confirmations out of normal product-category sheets.
-    // Export them to a dedicated sheet so store/date/status remain auditable.
     const isNoExpiry=String(r.expiry||'').trim().toUpperCase()==='NO EXPIRY';
-    const category=isNoExpiry?'NO EXPIRY':(String(r.category||'').trim()||'Uncategorised');
+    const rowCategory=String(r.category||'').trim();
+    const category=isNoExpiry?noExpiryDestination:(rowCategory||'Uncategorised');
     const name=clean_(category);
     if(!groups[name])groups[name]=[];
     groups[name].push(r);
