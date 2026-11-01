@@ -832,8 +832,7 @@ class MainActivity : ComponentActivity() {
                                             val now = LocalDateTime.now(IndiaZone)
                                             val sessionDate = if (now.hour < 15) now.toLocalDate().minusDays(1) else now.toLocalDate()
                                             val session = sessionDate.atTime(15, 0).atZone(IndiaZone).toOffsetDateTime().toString()
-                                            val assignedCategories = todaySchedule.map { it.baseCategory }.distinct().joinToString(" | ").ifBlank { "Unspecified" }
-                                            dao.insertEntry(ExpiryEntryEntity(id = java.util.UUID.randomUUID().toString(), store = store, skuCode = "", productName = "NO EXPIRY FOUND", scannedCode = "", category = assignedCategories, quantity = 0, expiryDate = "", sessionStart = session, createdAt = now.atZone(IndiaZone).toOffsetDateTime().toString(), expiry = "NO EXPIRY"))
+                                            dao.insertEntry(ExpiryEntryEntity(id = java.util.UUID.randomUUID().toString(), store = store, skuCode = "", productName = "", scannedCode = "", category = "", quantity = 0, expiryDate = "", sessionStart = session, createdAt = now.atZone(IndiaZone).toOffsetDateTime().toString(), expiry = "NO EXPIRY"))
                                             message = "NO EXPIRY FOUND saved in History."
                                             try { val result = syncRepository.uploadPendingEntries(); uploadMessage = result.message; message = "NO EXPIRY FOUND saved. " + result.message }
                                             catch (error: Exception) { uploadMessage = "Confirmation saved locally; upload pending."; val retryRequest = OneTimeWorkRequestBuilder<ExpirySyncWorker>().setConstraints(networkConstraints).build(); WorkManager.getInstance(applicationContext).enqueueUniqueWork("expiry-auto-upload-retry", ExistingWorkPolicy.KEEP, retryRequest) }
