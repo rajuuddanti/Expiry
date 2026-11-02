@@ -146,6 +146,17 @@ Secrets remain in the standalone Apps Script project's Script Properties:
 
 Never ask the user to paste the service-role key into chat.
 
+## Google Sheets reliability improvements — 2026-11-02
+
+A follow-up source update added:
+- Script-wide locking; concurrent exports wait up to 30 seconds, then fail visibly and trigger the configured alert.
+- Per-category sheet row-count verification and a final reconciliation of Supabase source rows against exported rows, accounting for intentionally excluded deleted NO EXPIRY rows.
+- NO EXPIRY CSV creation verification.
+- Expanded `_export_log` fields for status, exported row count, excluded deleted NO EXPIRY count, and NO EXPIRY CSV row count.
+- Optional failure email through Script Property `EXPORT_ALERT_EMAIL`; without it, errors remain visible in Apps Script Executions.
+
+Latest reliability commits: `0487c53` (verification, alerts, locking) and `8db3f87` (lock timeout and alert formatting), followed by setup documentation. **These GitHub changes are not live until the updated `Code.gs` is pasted into the standalone Apps Script editor, saved, and authorized.**
+
 ## Current verification boundary
 
 Verified:
@@ -156,7 +167,7 @@ Verified:
 Not verified in this handoff:
 - A fresh Android Gradle build, install, or end-to-end device test of the latest NO EXPIRY source.
 - A fresh CI result for the latest app-source commit.
-- GitHub's Apps Script copy is not yet synchronized with the user's corrected live editor copy.
+- New reliability improvements have not yet been pasted into or tested in the standalone Apps Script editor.
 
 ## Next work
 
@@ -165,3 +176,8 @@ Not verified in this handoff:
 3. Keep the current working branch; do not merge or switch to main.
 4. If asked to sync Apps Script, first compare the live working editor copy supplied by the user with the repository copy, then update only the intended script and setup documentation.
 5. Keep this handoff, `NEXT_CHAT_HANDOFF.md`, `IMPLEMENTATION_STATUS.md`, and dated implementation logs consistent after meaningful work.
+
+
+## Next Google Sheets setup action
+
+Paste the current `scripts/google-apps-script/Code.gs` from `feature/no-expiry-fix` into the standalone Apps Script editor. Add `EXPORT_ALERT_EMAIL` to Script Properties with the intended recipient email, save, then run `exportPreviousBusinessDayNow` once and verify the new `_export_log` columns and alert authorization. Do not share or change existing Supabase credentials.
