@@ -128,8 +128,15 @@ folder.createFile('no expiry.csv',lines.join('\r\n'),MimeType.CSV);
 ```
 In the actual JavaScript file this must contain one backslash before each r/n escape sequence, so the generated CSV has real CRLF line breaks.
 
-### Important GitHub/live-script mismatch
-At the time of this handoff, the GitHub copy `scripts/google-apps-script/Code.gs` still contains the old source expression `lines.join('\\\\r\\\\n')` (two backslashes in the JS source). The user corrected the complete file in the standalone Apps Script editor and confirmed the live export works. **Do not overwrite the working live Apps Script project with the stale GitHub copy.** The repository script has not been changed in this documentation-only update. If the user later asks to sync it, update the GitHub source to match the working editor version and test separately.
+### Repository and live Apps Script are synchronized
+
+The repository script was corrected on 2026-11-02 to use a JavaScript CRLF escape in the CSV writer. The source line is:
+
+```javascript
+folder.createFile('no expiry.csv',lines.join('\\r\\n'),MimeType.CSV);
+```
+
+This is the same behavior as the working standalone Apps Script editor: actual CRLF line breaks between CSV records. A GitHub commit still does not deploy the standalone Apps Script project; the user has already corrected and verified the live editor separately.
 
 Secrets remain in the standalone Apps Script project's Script Properties:
 - `SUPABASE_URL`

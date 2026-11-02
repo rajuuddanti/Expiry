@@ -50,11 +50,11 @@ Last updated: 2026-11-02 (Asia/Kolkata)
 
 ### Repository script warning
 
-The repository copy at `scripts/google-apps-script/Code.gs` still contains the incorrect source expression with a double-escaped line separator. The working live editor uses:
+The repository copy at `scripts/google-apps-script/Code.gs` has now been corrected to match the working live editor. The source line is:
 ```javascript
 folder.createFile('no expiry.csv',lines.join('\r\n'),MimeType.CSV);
 ```
-That source literal must have a single backslash before `r` and `n` in the JavaScript file. The generated CSV then contains real CRLF record separators. This documentation update intentionally does not change the script. Do not paste the stale GitHub file into the working Apps Script project.
+That source literal must have a single backslash before `r` and `n` in the JavaScript file. The generated CSV then contains real CRLF record separators. The script correction is committed separately from the earlier documentation update. GitHub does not automatically deploy the standalone Apps Script project; the user has already corrected and verified the live editor.
 
 ## Supabase context
 

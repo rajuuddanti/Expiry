@@ -82,7 +82,7 @@ function writeNoExpiryCsv_(folder,rows){
   rows.forEach(row=>lines.push(row.map(esc).join(',')));
   const old=folder.getFilesByName('no expiry.csv');
   while(old.hasNext())old.next().setTrashed(true);
-  folder.createFile('no expiry.csv',lines.join('\\r\\n'),MimeType.CSV);
+  folder.createFile('no expiry.csv',lines.join('\r\n'),MimeType.CSV);
 }
 
 function fetchRows_(c,start,end){

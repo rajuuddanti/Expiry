@@ -44,8 +44,8 @@ Read:
 - User confirmed on 2026-11-02 that the live export works as intended.
 - The standalone Apps Script runs near 3:15 PM IST and exports the previous completed 3 PM–3 PM session from `public.expiry_entry_uploads`.
 - Category sheets are generated from categories actually present in the data; all stores are combined. Active NO EXPIRY confirmations are exported separately to `no expiry.csv`; deleted NO EXPIRY marks are excluded.
-- The CSV fix in the live Apps Script uses actual CRLF line breaks.
-- **Important:** GitHub's `scripts/google-apps-script/Code.gs` still has the old escaped line separator. Do not paste that stale repository copy over the working live Apps Script editor. The current documentation-only update does not change the script.
+- The CSV writer in both the GitHub repository and the working live Apps Script uses actual CRLF line breaks.
+- The GitHub script update does not deploy to Apps Script; the standalone editor remains a separate deployment. The user confirmed the live export works.
 
 ## Rules for future work
 
