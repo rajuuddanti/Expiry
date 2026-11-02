@@ -578,10 +578,10 @@ class MainActivity : ComponentActivity() {
                         Column(
                             Modifier.fillMaxWidth()
                                 .background(Color.White)
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
                         ) {
                             Text(
-                                "MAHAMART",
+                                "MAHALAXMI MAHAMART",
                                 color = MahalaxmiRed,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -600,87 +600,42 @@ class MainActivity : ComponentActivity() {
                         when (screen) {
                             AppScreen.Scan -> {
                                 Column(
-                                    Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp).verticalScroll(rememberScrollState()),
-                                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                                    Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 4.dp).verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(14.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(top = 1.dp, bottom = 0.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                                     ) {
-                                        Column(
-                                            Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                                            verticalArrangement = Arrangement.spacedBy(9.dp)
-                                        ) {
-                                            Row(
-                                                Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                                            ) {
-                                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                    Text("TODAY'S INSPECTION", color = MahalaxmiRed, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
-                                                    Text(currentSessionDate.format(DateTimeFormatter.ofPattern("dd MMM yyyy")), color = Color(0xFF25282C), fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                                                }
-                                                TextButton(
-                                                    onClick = {
-                                                        showReturnRules = true
-                                                        if (returnRules.isEmpty() && !returnRulesLoading) {
-                                                            scope.launch {
-                                                                returnRulesLoading = true
-                                                                returnRulesError = ""
-                                                                try {
-                                                                    returnRules = syncRepository.fetchReturnRules()
-                                                                } catch (error: Exception) {
-                                                                    returnRulesError = error.message ?: "Could not load return rules."
-                                                                } finally {
-                                                                    returnRulesLoading = false
-                                                                }
-                                                            }
-                                                        }
-                                                    },
-                                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                                                ) { Text("RETURN RULES", fontSize = 10.sp, color = MahalaxmiRed, fontWeight = FontWeight.Bold) }
-                                            }
-                                            if (todaySchedule.isEmpty()) {
-                                                Text("No categories scheduled today", color = Color(0xFF73777D), fontSize = 13.sp)
-                                            } else {
-                                                todaySchedule.forEach { row ->
-                                                    val markedNoExpiry = currentSessionEntries.any { entry ->
-                                                        entry.store.equals(store, true) && entry.deletedAt == null &&
-                                                            entry.expiry.equals("NO EXPIRY", true) &&
-                                                            normalizedRuleName(entry.noExpiryCategory) == normalizedRuleName(row.baseCategory)
-                                                    }
-                                                    val categoryEntries = currentSessionEntries.count { entry ->
-                                                        entry.store.equals(store, true) && entry.deletedAt == null &&
-                                                            !entry.expiry.equals("NO EXPIRY", true) &&
-                                                            normalizedRuleName(entry.category) == normalizedRuleName(row.baseCategory)
-                                                    }
-                                                    Row(
-                                                        Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                                                    ) {
-                                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                                                            Text(row.baseCategory, color = Color(0xFF292D32), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                                                            Text("$categoryEntries expiry entries", color = Color(0xFF777D84), fontSize = 11.sp)
-                                                        }
-                                                        Surface(
-                                                            color = if (markedNoExpiry) Color(0xFFE8F5E9) else if (categoryEntries > 0) Color(0xFFE8EEF9) else Color(0xFFFFF3E0),
-                                                            shape = RoundedCornerShape(20.dp)
-                                                        ) {
-                                                            Text(
-                                                                if (markedNoExpiry) "NO EXPIRY" else if (categoryEntries > 0) "IN PROGRESS" else "PENDING",
-                                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                                                color = if (markedNoExpiry) Color(0xFF2E7D32) else if (categoryEntries > 0) Color(0xFF315A91) else Color(0xFF9A5B00),
-                                                                fontSize = 9.sp,
-                                                                fontWeight = FontWeight.Bold
-                                                            )
+                                        Text(
+                                            todaySchedule.joinToString(" • ") { it.baseCategory }
+                                                .ifBlank { "No categories scheduled today" },
+                                            modifier = Modifier.weight(1f),
+                                            fontSize = 17.sp,
+                                            lineHeight = 21.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF292D32)
+                                        )
+                                        TextButton(
+                                            onClick = {
+                                                showReturnRules = true
+                                                if (returnRules.isEmpty() && !returnRulesLoading) {
+                                                    scope.launch {
+                                                        returnRulesLoading = true
+                                                        returnRulesError = ""
+                                                        try {
+                                                            returnRules = syncRepository.fetchReturnRules()
+                                                        } catch (error: Exception) {
+                                                            returnRulesError = error.message ?: "Could not load return rules."
+                                                        } finally {
+                                                            returnRulesLoading = false
                                                         }
                                                     }
                                                 }
-                                            }
-                                        }
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                        ) { Text("ⓘ Return Rules", fontSize = 11.sp, color = MahalaxmiRed, fontWeight = FontWeight.Bold) }
                                     }
                                     if (showReturnRules) {
                                         val categoryRules = todaySchedule.mapNotNull { row ->
@@ -732,20 +687,23 @@ class MainActivity : ComponentActivity() {
                                     }
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0EAF6))
                                     ) {
-                                        Row(
-                                            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                                        ) {
-                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                Text("CURRENT STORE", color = Color(0xFF777D84), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp)
-                                                Text(if (store.isBlank()) "Select store in Settings" else store, color = Color(0xFF25282C), fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                                            }
-                                            Text("3 PM – 3 PM", color = MahalaxmiRed, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Column(Modifier.padding(horizontal = 12.dp, vertical = 7.dp)) {
+                                            Text(
+                                                "CURRENT STORE",
+                                                color = Color(0xFF77717E),
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                letterSpacing = 0.5.sp
+                                            )
+                                            Text(
+                                                if (store.isBlank()) "Select store in Settings" else store,
+                                                color = Color(0xFF29252F),
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         }
                                     }
                                     Row(
