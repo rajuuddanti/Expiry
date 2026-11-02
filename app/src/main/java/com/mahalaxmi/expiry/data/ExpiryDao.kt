@@ -18,6 +18,14 @@ interface ExpiryDao {
     @Query("SELECT * FROM expiry_entries WHERE syncStatus = 'PENDING' ORDER BY createdAt ASC")
     suspend fun getPendingEntries(): List<ExpiryEntryEntity>
     @Query("""
+        SELECT COUNT(*) FROM expiry_entries
+        WHERE store = :store AND sessionStart = :sessionStart
+          AND UPPER(TRIM(expiry)) = 'NO EXPIRY'
+          AND UPPER(TRIM(noExpiryCategory)) = UPPER(TRIM(:category))
+          AND deletedAt IS NULL
+    """)
+    suspend fun activeNoExpiryCount(store: String, sessionStart: String, category: String): Int
+    @Query("""
         SELECT * FROM product_master
         WHERE isActive = 1 AND (
             UPPER(TRIM(scanCode)) = UPPER(TRIM(:code))
