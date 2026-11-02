@@ -14,11 +14,22 @@ function setupDailyTrigger(){
     .atHour(15).nearMinute(15).inTimezone(TZ).create();
   Logger.log('Trigger created (Apps Script runs near 3:15 PM IST, not guaranteed to the exact minute).');
 }
-function exportPreviousBusinessDay(){exportDate_(targetDate_());}
-function exportPreviousBusinessDayNow(){exportDate_(targetDate_());}
+function exportPreviousBusinessDay(){runExportSafely_(targetDate_());}
+function exportPreviousBusinessDayNow(){runExportSafely_(targetDate_());}
 function exportBusinessDateForTesting(yyyyMMdd){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(String(yyyyMMdd)))throw Error('Use YYYY-MM-DD');
-  exportDate_(String(yyyyMMdd));
+  runExportSafely_(String(yyyyMMdd));
+}
+function runExportSafely_(date){
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(1000)){Logger.log('Export skipped for '+date+': another export is already running.');return;}
+  try{exportDate_(date);}catch(err){notifyExportFailure_(date,err);throw err;}finally{lock.releaseLock();}
+}
+function notifyExportFailure_(date,err){
+  const email=PropertiesService.getScriptProperties().getProperty('EXPORT_ALERT_EMAIL');
+  const message='MahaMart Expiry Google Sheets export failed.\\nBusiness date: '+date+'\\nTime (IST): '+Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm:ss')+'\\nError: '+String(err&&err.stack?err.stack:err).slice(0,4000)+'\\n\\nCheck the Apps Script Executions page for the full run details.';
+  if(!email){Logger.log('EXPORT_ALERT_EMAIL is not configured. '+message);return;}
+  try{MailApp.sendEmail(email,'MahaMart Expiry export FAILED — '+date,message);}catch(mailErr){Logger.log('Could not send export failure email: '+mailErr);}
 }
 function targetDate_(){
   const today=Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd').split('-').map(Number);
@@ -47,10 +58,12 @@ function exportDate_(date){
   // NO EXPIRY confirmations go to a separate CSV; category selection is saved separately.
   const groups={};
   const noExpiryRows=[];
+  let deletedNoExpiryCount=0;
   rows.forEach(r=>{
     const isNoExpiry=String(r.expiry||'').trim().toUpperCase()==='NO EXPIRY';
     if(isNoExpiry){
       if(String(r.is_deleted).toLowerCase()!=='true') noExpiryRows.push([String(r.location||''),date,String(r.no_expiry_category||'')]);
+      else deletedNoExpiryCount++;
       return;
     }
     const rowCategory=String(r.category||'').trim()||'Uncategorised';
@@ -70,10 +83,14 @@ function exportDate_(date){
       file.setTrashed(true);
     }
   }
-  categories.forEach(k=>writeSheet_(day,k,groups[k]));
-  writeNoExpiryCsv_(day,noExpiryRows);
-  logExport_(root,date,start,end,rows.length,categories,day.getId());
-  Logger.log(JSON.stringify({businessDate:date,rows:rows.length,scheduledCategories:scheduled,exportedCategories:categories,folder:folderLabel}));
+  let sheetRowsWritten=0;
+  categories.forEach(k=>{sheetRowsWritten+=writeSheet_(day,k,groups[k]);});
+  const noExpiryRowsWritten=writeNoExpiryCsv_(day,noExpiryRows);
+  const exportedRows=sheetRowsWritten+noExpiryRowsWritten;
+  const expectedRows=rows.length-deletedNoExpiryCount;
+  if(exportedRows!==expectedRows)throw Error('Export row-count mismatch: Supabase rows='+rows.length+', excluded deleted NO EXPIRY='+deletedNoExpiryCount+', expected exported='+expectedRows+', verified exported='+exportedRows+'.');
+  logExport_(root,date,start,end,rows.length,categories,day.getId(),{exportedRows:exportedRows,deletedNoExpiry:deletedNoExpiryCount,noExpiryRows:noExpiryRowsWritten,status:'SUCCESS',error:''});
+  Logger.log(JSON.stringify({businessDate:date,supabaseRows:rows.length,exportedRows:exportedRows,deletedNoExpiryExcluded:deletedNoExpiryCount,scheduledCategories:scheduled,exportedCategories:categories,folder:folderLabel,status:'SUCCESS'}));
 }
 
 function writeNoExpiryCsv_(folder,rows){
@@ -82,7 +99,9 @@ function writeNoExpiryCsv_(folder,rows){
   rows.forEach(row=>lines.push(row.map(esc).join(',')));
   const old=folder.getFilesByName('no expiry.csv');
   while(old.hasNext())old.next().setTrashed(true);
-  folder.createFile('no expiry.csv',lines.join('\r\n'),MimeType.CSV);
+  const file=folder.createFile('no expiry.csv',lines.join('\r\n'),MimeType.CSV);
+  if(!file.getSize())throw Error('NO EXPIRY CSV was created but is empty.');
+  return rows.length;
 }
 
 function fetchRows_(c,start,end){
@@ -117,15 +136,20 @@ function writeSheet_(folder,category,rows){
   if(existingFilter)existingFilter.remove();
   if(sh.getLastRow()>1)sh.getRange(1,1,sh.getLastRow(),headers.length).createFilter();
   sh.autoResizeColumns(1,headers.length);book.setSpreadsheetTimeZone(TZ);
+  const verifiedRows=Math.max(0,sh.getLastRow()-1);
+  if(verifiedRows!==rows.length)throw Error('Sheet row-count mismatch for '+name+': expected '+rows.length+', found '+verifiedRows+'.');
+  return verifiedRows;
 }
-function logExport_(root,date,start,end,count,categories,folderId){
+function logExport_(root,date,start,end,count,categories,folderId,metrics){
   const it=root.getFilesByName('_export_log');let book;
   if(it.hasNext())book=SpreadsheetApp.openById(it.next().getId());
   else{book=SpreadsheetApp.create('_export_log');DriveApp.getFileById(book.getId()).moveTo(root);}
   const sh=book.getSheets()[0];sh.setName('Export Log');
-  if(!sh.getLastRow()){sh.appendRow(['business_date','range_start_inclusive','range_end_exclusive','row_count','categories_exported','folder_id','exported_at_ist']);sh.setFrozenRows(1);}
+  const headers=['business_date','range_start_inclusive','range_end_exclusive','row_count','categories_exported','folder_id','exported_at_ist','status','exported_row_count','excluded_deleted_no_expiry','no_expiry_csv_rows','error'];
+  if(!sh.getLastRow()){sh.appendRow(headers);sh.setFrozenRows(1);}
+  else if(sh.getLastColumn()<headers.length)sh.getRange(1,1,1,headers.length).setValues([headers]);
   let row=0;if(sh.getLastRow()>1){const vals=sh.getRange(2,1,sh.getLastRow()-1,1).getDisplayValues();for(let i=0;i<vals.length;i++)if(vals[i][0]===date){row=i+2;break;}}
-  const record=[[date,start,end,count,categories.join(' | '),folderId,Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm:ss')]];
+  const record=[[date,start,end,count,categories.join(' | '),folderId,Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm:ss'),metrics.status,metrics.exportedRows,metrics.deletedNoExpiry,metrics.noExpiryRows,metrics.error]];
   sh.getRange(row||sh.getLastRow()+1,1,1,record[0].length).setValues(record);
 }
 function getFolder_(parent,name){const it=parent.getFoldersByName(name);return it.hasNext()?it.next():parent.createFolder(name);}
