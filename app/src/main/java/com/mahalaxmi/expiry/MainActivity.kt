@@ -206,7 +206,10 @@ class MainActivity : ComponentActivity() {
             var showStorePinDialog by remember { mutableStateOf(false) }
             var showStoreNameDialog by remember { mutableStateOf(false) }
             var showNoExpiryCategoryDialog by remember { mutableStateOf(false) }
+            var showNoExpiryConfirmDialog by remember { mutableStateOf(false) }
+            var showNoExpiryAlreadyDialog by remember { mutableStateOf(false) }
             var selectedNoExpiryCategory by remember { mutableStateOf("") }
+            var pendingNoExpiryCategory by remember { mutableStateOf("") }
             var categoryMismatchPending by remember { mutableStateOf(false) }
             var screen by remember { mutableStateOf(AppScreen.Scan) }
             var code by remember { mutableStateOf("") }
@@ -278,6 +281,10 @@ class MainActivity : ComponentActivity() {
                     val now = LocalDateTime.now(IndiaZone)
                     val sessionDate = if (now.hour < 15) now.toLocalDate().minusDays(1) else now.toLocalDate()
                     val session = sessionDate.atTime(15, 0).atZone(IndiaZone).toOffsetDateTime().toString()
+                    if (dao.activeNoExpiryCount(store, session, selectedCategory) > 0) {
+                        message = "Already marked NO EXPIRY for $selectedCategory today."
+                        return@launch
+                    }
                     dao.insertEntry(ExpiryEntryEntity(
                         id = java.util.UUID.randomUUID().toString(), store = store,
                         skuCode = "", productName = "", scannedCode = "", category = "",
@@ -312,6 +319,11 @@ class MainActivity : ComponentActivity() {
                         val now = LocalDateTime.now(IndiaZone)
                         val sessionDate = if (now.hour < 15) now.toLocalDate().minusDays(1) else now.toLocalDate()
                         val session = sessionDate.atTime(15, 0).atZone(IndiaZone).toOffsetDateTime().toString()
+                        val entryCategory = matchedProduct?.category.orEmpty()
+                        if (entryCategory.isNotBlank() && dao.activeNoExpiryCount(store, session, entryCategory) > 0) {
+                            message = "NO EXPIRY is already marked for $entryCategory today. Delete that NO EXPIRY record from History to allow entries again."
+                            return@launch
+                        }
                         dao.insertEntry(
                             ExpiryEntryEntity(
                                 id = java.util.UUID.randomUUID().toString(),
@@ -319,7 +331,7 @@ class MainActivity : ComponentActivity() {
                                 skuCode = matchedProduct?.skuCode ?: code.trim(),
                                 productName = name.trim(),
                                 scannedCode = code.trim(),
-                                category = matchedProduct?.category.orEmpty(),
+                                category = entryCategory,
                                 quantity = q,
                                 expiryDate = expiry,
                                 sessionStart = session,
@@ -415,6 +427,32 @@ class MainActivity : ComponentActivity() {
                             }) { Text("SAVE", color = MahalaxmiRed) }
                         },
                         dismissButton = { TextButton(onClick = { showStoreNameDialog = false }) { Text("CANCEL") } }
+                    )
+                }
+                if (showNoExpiryConfirmDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showNoExpiryConfirmDialog = false; pendingNoExpiryCategory = "" },
+                        title = { Text("Confirm NO EXPIRY") },
+                        text = { Text("Are you sure you want to save NO EXPIRY for $pendingNoExpiryCategory for the present business day?") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val chosen = pendingNoExpiryCategory
+                                showNoExpiryConfirmDialog = false
+                                pendingNoExpiryCategory = ""
+                                if (chosen.isNotBlank()) saveNoExpiryEntry(chosen)
+                            }) { Text("YES, SAVE", color = MahalaxmiRed) }
+                        },
+                        dismissButton = { TextButton(onClick = { showNoExpiryConfirmDialog = false; pendingNoExpiryCategory = "" }) { Text("CANCEL") } }
+                    )
+                }
+                if (showNoExpiryAlreadyDialog) {
+                    val marked = currentSessionEntries.filter { it.expiry.equals("NO EXPIRY", true) }
+                        .map { it.noExpiryCategory }.filter { it.isNotBlank() }.distinctBy { it.uppercase() }
+                    AlertDialog(
+                        onDismissRequest = { showNoExpiryAlreadyDialog = false },
+                        title = { Text("NO EXPIRY already marked") },
+                        text = { Text("Already marked NO EXPIRY for: ${marked.joinToString(", ")}.") },
+                        confirmButton = { TextButton(onClick = { showNoExpiryAlreadyDialog = false }) { Text("OK", color = MahalaxmiRed) } }
                     )
                 }
                 if (categoryMismatchPending) {
@@ -864,19 +902,31 @@ class MainActivity : ComponentActivity() {
                                         if (store.isBlank()) {
                                             message = "Please select your store first."
                                         } else {
-                                            val options = scheduledSupabaseCategories
+                                            val marked = currentSessionEntries.filter { it.expiry.equals("NO EXPIRY", true) }
+                                                .map { it.noExpiryCategory }.filter { it.isNotBlank() }.distinctBy { it.uppercase() }
+                                            val remaining = scheduledSupabaseCategories.filter { candidate ->
+                                                marked.none { it.equals(candidate, ignoreCase = true) }
+                                            }
                                             when {
-                                                options.isEmpty() -> message = "No matching Supabase categories found for today's scheduled categories. Sync the product master and try again."
-                                                options.size == 1 -> saveNoExpiryEntry(options.first())
+                                                marked.size >= scheduledSupabaseCategories.size && marked.isNotEmpty() -> showNoExpiryAlreadyDialog = true
+                                                remaining.isEmpty() -> showNoExpiryAlreadyDialog = true
+                                                remaining.size == 1 -> {
+                                                    pendingNoExpiryCategory = remaining.first()
+                                                    showNoExpiryConfirmDialog = true
+                                                }
                                                 else -> {
-                                                    selectedNoExpiryCategory = options.first()
+                                                    selectedNoExpiryCategory = remaining.first()
                                                     showNoExpiryCategoryDialog = true
                                                 }
                                             }
                                         }
                                     }, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))) { Text("NO EXPIRY FOUND", fontWeight = FontWeight.Bold) }
                                     if (showNoExpiryCategoryDialog) {
-                                        val options = scheduledSupabaseCategories
+                                        val marked = currentSessionEntries.filter { it.expiry.equals("NO EXPIRY", true) }
+                                            .map { it.noExpiryCategory }.filter { it.isNotBlank() }.distinctBy { it.uppercase() }
+                                        val options = scheduledSupabaseCategories.filter { candidate ->
+                                            marked.none { it.equals(candidate, ignoreCase = true) }
+                                        }
                                         AlertDialog(
                                             onDismissRequest = { showNoExpiryCategoryDialog = false },
                                             title = { Text("Which category has no expiry?") },
@@ -894,8 +944,11 @@ class MainActivity : ComponentActivity() {
                                                 TextButton(onClick = {
                                                     val chosen = selectedNoExpiryCategory
                                                     showNoExpiryCategoryDialog = false
-                                                    if (chosen.isNotBlank()) saveNoExpiryEntry(chosen)
-                                                }) { Text("CONFIRM") }
+                                                    if (chosen.isNotBlank()) {
+                                                        pendingNoExpiryCategory = chosen
+                                                        showNoExpiryConfirmDialog = true
+                                                    }
+                                                }) { Text("CONTINUE") }
                                             },
                                             dismissButton = {
                                                 TextButton(onClick = { showNoExpiryCategoryDialog = false }) { Text("CANCEL") }
