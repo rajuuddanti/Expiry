@@ -854,6 +854,9 @@ class MainActivity : ComponentActivity() {
                             }
 
                             AppScreen.Settings -> {
+                                val scheduledSupabaseCategories = todayCategoryProducts
+                                    .mapNotNull { it.category?.trim()?.takeIf { value -> value.isNotBlank() } }
+                                    .distinctBy { it.uppercase() }
                                 Column(Modifier.fillMaxSize().padding(16.dp)) {
                                     Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                                     Text("Product master import and local data", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
@@ -861,9 +864,9 @@ class MainActivity : ComponentActivity() {
                                         if (store.isBlank()) {
                                             message = "Please select your store first."
                                         } else {
-                                            val options = todaySchedule.map { it.category }.distinctBy { it.uppercase() }
+                                            val options = scheduledSupabaseCategories
                                             when {
-                                                options.isEmpty() -> message = "No category is scheduled for this business day."
+                                                options.isEmpty() -> message = "No matching Supabase categories found for today's scheduled categories. Sync the product master and try again."
                                                 options.size == 1 -> saveNoExpiryEntry(options.first())
                                                 else -> {
                                                     selectedNoExpiryCategory = options.first()
@@ -873,7 +876,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))) { Text("NO EXPIRY FOUND", fontWeight = FontWeight.Bold) }
                                     if (showNoExpiryCategoryDialog) {
-                                        val options = todaySchedule.map { it.category }.distinctBy { it.uppercase() }
+                                        val options = scheduledSupabaseCategories
                                         AlertDialog(
                                             onDismissRequest = { showNoExpiryCategoryDialog = false },
                                             title = { Text("Which category has no expiry?") },
