@@ -430,10 +430,15 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 if (showNoExpiryConfirmDialog) {
+                    val alreadyMarked = currentSessionEntries.filter { it.expiry.equals("NO EXPIRY", true) }
+                        .map { it.noExpiryCategory }.filter { it.isNotBlank() }.distinctBy { it.uppercase() }
                     AlertDialog(
                         onDismissRequest = { showNoExpiryConfirmDialog = false; pendingNoExpiryCategory = "" },
                         title = { Text("Confirm NO EXPIRY") },
-                        text = { Text("Are you sure you want to save NO EXPIRY for $pendingNoExpiryCategory for the present business day?") },
+                        text = {
+                            val previous = if (alreadyMarked.isEmpty()) "" else "Already marked NO EXPIRY for: ${alreadyMarked.joinToString(", ")}.\n\n"
+                            Text(previous + "Are you sure you want to save NO EXPIRY for $pendingNoExpiryCategory for the present business day?")
+                        },
                         confirmButton = {
                             TextButton(onClick = {
                                 val chosen = pendingNoExpiryCategory
@@ -908,6 +913,7 @@ class MainActivity : ComponentActivity() {
                                                 marked.none { it.equals(candidate, ignoreCase = true) }
                                             }
                                             when {
+                                                scheduledSupabaseCategories.isEmpty() -> message = "No matching Supabase categories found for today's scheduled categories. Sync the product master and try again."
                                                 marked.size >= scheduledSupabaseCategories.size && marked.isNotEmpty() -> showNoExpiryAlreadyDialog = true
                                                 remaining.isEmpty() -> showNoExpiryAlreadyDialog = true
                                                 remaining.size == 1 -> {
