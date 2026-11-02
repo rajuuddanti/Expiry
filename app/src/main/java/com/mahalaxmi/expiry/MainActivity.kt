@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -604,19 +605,42 @@ class MainActivity : ComponentActivity() {
                                     verticalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
                                     Row(
-                                        Modifier.fillMaxWidth().padding(top = 1.dp, bottom = 0.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        Modifier.fillMaxWidth().height(40.dp).padding(top = 1.dp),
                                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            todaySchedule.joinToString(" • ") { it.baseCategory }
-                                                .ifBlank { "No categories scheduled today" },
-                                            modifier = Modifier.weight(1f),
-                                            fontSize = 17.sp,
-                                            lineHeight = 21.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF292D32)
-                                        )
+                                        Row(
+                                            modifier = Modifier.weight(1f).fillMaxHeight()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                        ) {
+                                            if (todaySchedule.isEmpty()) {
+                                                Text(
+                                                    "No categories scheduled today",
+                                                    fontSize = 12.sp,
+                                                    color = Color(0xFF73777D),
+                                                    maxLines = 1
+                                                )
+                                            } else {
+                                                todaySchedule.forEach { row ->
+                                                    Surface(
+                                                        shape = RoundedCornerShape(18.dp),
+                                                        color = Color(0xFFFCEBEC)
+                                                    ) {
+                                                        Text(
+                                                            row.baseCategory,
+                                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                            fontSize = 12.sp,
+                                                            lineHeight = 16.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MahalaxmiRed,
+                                                            maxLines = 1,
+                                                            softWrap = false
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
                                         TextButton(
                                             onClick = {
                                                 showReturnRules = true
@@ -634,8 +658,9 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 }
                                             },
-                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                                        ) { Text("ⓘ Return Rules", fontSize = 11.sp, color = MahalaxmiRed, fontWeight = FontWeight.Bold) }
+                                            modifier = Modifier.height(36.dp),
+                                            contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)
+                                        ) { Text("ⓘ Rules", fontSize = 11.sp, color = MahalaxmiRed, fontWeight = FontWeight.Bold, maxLines = 1) }
                                     }
                                     if (showReturnRules) {
                                         val categoryRules = todaySchedule.mapNotNull { row ->
