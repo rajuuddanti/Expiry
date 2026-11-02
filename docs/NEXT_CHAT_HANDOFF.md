@@ -44,7 +44,7 @@ Read:
 - User confirmed on 2026-11-02 that the live export works as intended.
 - The standalone Apps Script runs near 3:15 PM IST and exports the previous completed 3 PM–3 PM session from `public.expiry_entry_uploads`.
 - Category sheets are generated from categories actually present in the data; all stores are combined. Active NO EXPIRY confirmations are exported separately to `no expiry.csv`; deleted NO EXPIRY marks are excluded.
-- The CSV writer in both the GitHub repository and the working live Apps Script uses actual CRLF line breaks.
+- The CSV writer in both the GitHub repository and the working live Apps Script uses actual CRLF line breaks. GitHub now also contains row-count reconciliation, per-sheet verification, overlap locking, and optional failure email alerts.
 - The GitHub script update does not deploy to Apps Script; the standalone editor remains a separate deployment. The user confirmed the live export works.
 
 ## Rules for future work
@@ -60,3 +60,8 @@ Read:
 ## Recommended next step
 
 Wait for the user's next requested task. If they ask for Android changes, inspect the current branch and relevant Kotlin code first; if they ask for Apps Script changes, preserve the working live setup and change only what is requested.
+
+
+## Google Sheets reliability follow-up — 2026-11-02
+
+Latest source changes on `feature/no-expiry-fix` add a 30-second script lock, per-category row-count checks, overall Supabase-to-export reconciliation, NO EXPIRY CSV creation verification, expanded `_export_log` metrics, and optional email alerts via `EXPORT_ALERT_EMAIL`. These changes are only in GitHub until the updated `Code.gs` is pasted into the standalone Apps Script editor, saved, and authorized. After that, run `exportPreviousBusinessDayNow` once and inspect `_export_log`.
