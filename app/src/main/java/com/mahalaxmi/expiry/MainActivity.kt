@@ -1,6 +1,11 @@
 package com.mahalaxmi.expiry
 
 import android.os.Bundle
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.content.Intent
 import androidx.core.content.FileProvider
 import java.io.File
@@ -100,6 +105,43 @@ private fun categoryRuleFor(category: String, rules: List<SupabaseSyncRepository
 }
 
 class MainActivity : ComponentActivity() {
+    private var feedbackToneGenerator: ToneGenerator? = null
+
+    private fun vibrateFeedback(durationMs: Long = 90L) {
+        val vibrator = getSystemService(Vibrator::class.java) ?: return
+        if (!vibrator.hasVibrator()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(durationMs)
+        }
+    }
+
+    private fun playFeedbackTone(tone: Int) {
+        runCatching {
+            val generator = feedbackToneGenerator ?: ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
+                .also { feedbackToneGenerator = it }
+            generator.startTone(tone, 180)
+        }
+    }
+
+    private fun blockedEntryFeedback() {
+        playFeedbackTone(ToneGenerator.TONE_PROP_NACK)
+        vibrateFeedback(180L)
+    }
+
+    private fun deleteEntryFeedback() {
+        playFeedbackTone(ToneGenerator.TONE_SUP_ERROR)
+        vibrateFeedback(220L)
+    }
+
+    override fun onDestroy() {
+        feedbackToneGenerator?.release()
+        feedbackToneGenerator = null
+        super.onDestroy()
+    }
+
     private var scannedValue by mutableStateOf("")
     private fun shareCsv(entries: List<ExpiryEntryEntity>) {
         fun escape(value: String): String = "\"" + value.replace("\"", "\"\"").replace("\\n", " ") + "\""
@@ -357,6 +399,7 @@ class MainActivity : ComponentActivity() {
                             }
                         when {
                             allEntriesBlocked -> {
+                                blockedEntryFeedback()
                                 message = if (scheduledSupabaseCategories.size == 1) {
                                     "NO EXPIRY is already marked for ${scheduledSupabaseCategories.first()}. All expiry entries are blocked for this business day."
                                 } else {
@@ -365,6 +408,7 @@ class MainActivity : ComponentActivity() {
                                 return@launch
                             }
                             entryCategoryIsMarked -> {
+                                blockedEntryFeedback()
                                 message = "NO EXPIRY is already marked for $entryCategory. Entries for this category are blocked today."
                                 return@launch
                             }
@@ -535,8 +579,11 @@ class MainActivity : ComponentActivity() {
                             TextButton(onClick = {
                                 val item = pendingDelete
                                 pendingDelete = null
-                                if (item != null) scope.launch {
+                                if (item != null) {
+                                    deleteEntryFeedback()
+                                    scope.launch {
                                     dao.softDeleteEntry(item.id, LocalDateTime.now(IndiaZone).atZone(IndiaZone).toOffsetDateTime().toString())
+                                    }
                                 }
                             }) { Text("DELETE", color = MahalaxmiRed) }
                         },
@@ -828,6 +875,7 @@ class MainActivity : ComponentActivity() {
 
                                     Button(
                                         onClick = {
+                                            vibrateFeedback(70L)
                                             val enteredCategory = normalizedRuleName(category)
                                             val allowedToday = todaySchedule.map { normalizedRuleName(it.baseCategory) }
                                             if (enteredCategory.isNotBlank() && enteredCategory !in allowedToday) {
