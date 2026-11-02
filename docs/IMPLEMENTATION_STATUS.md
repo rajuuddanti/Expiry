@@ -19,7 +19,7 @@ Last updated: 2026-11-02 (Asia/Kolkata)
 | Block new entries after NO EXPIRY | Source implemented | One-category/two-category rules documented below |
 | Daily Google Sheets export | User-confirmed working | User confirmed on 2026-11-02 after the 3 PM run |
 | CSV line-break correction | Live Apps Script editor corrected | User pasted full corrected file and confirmed output works |
-| GitHub Apps Script copy | Still stale for CSV line breaks | Do not deploy repository copy over live script until synced |
+| GitHub Apps Script copy | CSV fix synchronized; reliability enhancements committed | New enhancements still need to be pasted into standalone Apps Script and tested |
 | Latest Android build / device test | Not verified here | No fresh build or device output available |
 | Latest Android CI status | Not verified here | Check Actions before reporting |
 
@@ -55,6 +55,10 @@ The repository copy at `scripts/google-apps-script/Code.gs` has now been correct
 folder.createFile('no expiry.csv',lines.join('\r\n'),MimeType.CSV);
 ```
 That source literal must have a single backslash before `r` and `n` in the JavaScript file. The generated CSV then contains real CRLF record separators. The script correction is committed separately from the earlier documentation update. GitHub does not automatically deploy the standalone Apps Script project; the user has already corrected and verified the live editor.
+
+## Google Sheets reliability enhancements — 2026-11-02
+
+Committed to `feature/no-expiry-fix`: overlap lock with 30-second wait, per-category sheet row-count verification, source-to-export reconciliation (excluding deleted NO EXPIRY records by design), NO EXPIRY CSV creation check, expanded `_export_log` metrics, and optional failure email via `EXPORT_ALERT_EMAIL`. These are source changes only; the standalone Apps Script editor has not yet been updated or tested with them. See `docs/GOOGLE_SHEETS_EXPORT_SETUP.md` for setup.
 
 ## Supabase context
 
