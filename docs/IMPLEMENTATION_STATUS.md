@@ -1,62 +1,93 @@
 # Implementation Status — Mahalaxmi Expiry Manager
 
-Last updated: 2026-10-31 (Asia/Kolkata)
+Last updated: 2026-11-02 (Asia/Kolkata)
 
-## Branch context
+## Repository state
 
-Current branch used for recent documentation/work: `feature/new-expiry-upload-table`. Branch histories have diverged; verify HEAD and source files before assuming all recorded commits are present.
+- Repository: `rajuuddanti/Expiry`
+- Active branch: `feature/no-expiry-fix`
+- Latest app-source commit before this documentation update: `b7c22c15d9e8ff758c181f95d3851de5ac92f372`.
+- Do not use stale `main` as the working branch. Verify HEAD before every change.
 
-## Recent changes recorded in the handoff
+## Verified current state
 
-The prior session reported changes related to:
-- local-only expiry records in Room (no cloud upload of expiry entries);
-- CSV export/share through Android's share sheet;
-- FileProvider configuration for sharing;
-- SKU/EAN scan mapping with FCFS canonical SKU and separate raw scanned code;
-- master refresh interval changed to 24 hours.
+| Area | Status | Evidence / boundary |
+|---|---|---|
+| NO EXPIRY category selection | Source implemented | Current branch source and docs |
+| Prevent duplicate active NO EXPIRY marks | Source implemented | Current branch source and docs |
+| Prevent NO EXPIRY when active expiry entries exist in same category | Source implemented | Commit `b7c22c1`; soft-deleted rows excluded |
+| Block new entries after NO EXPIRY | Source implemented | One-category/two-category rules documented below |
+| Daily Google Sheets export | User-confirmed working | User confirmed on 2026-11-02 after the 3 PM run |
+| CSV line-break correction | Live Apps Script editor corrected | User pasted full corrected file and confirmed output works |
+| GitHub Apps Script copy | Still stale for CSV line breaks | Do not deploy repository copy over live script until synced |
+| Latest Android build / device test | Not verified here | No fresh build or device output available |
+| Latest Android CI status | Not verified here | Check Actions before reporting |
 
-Recorded commit IDs are listed in `docs/CURRENT_HANDOFF.md`. These notes are not proof that every commit is on the current branch or that the code compiles. Inspect actual source before relying on these statements.
+## NO EXPIRY rules in the current source
 
-## Backend state reported by user
+- One scheduled category: auto-select the only category; staff confirm.
+- Two scheduled categories: staff select which category to mark and confirm.
+- An active mark cannot be duplicated for the same store/category/business day. A soft-deleted mark no longer counts.
+- A category cannot be marked NO EXPIRY while that store/category has active ordinary expiry entries in the current 3 PM–3 PM session. Staff must delete those entries from History first.
+- One-category day: once marked, block all new expiry entries for the rest of that business day, including unscheduled categories.
+- Two-category day: marking one category blocks only that category. The other scheduled category and unscheduled categories remain allowed. If both scheduled categories are marked, block all new entries.
+- Final save validation covers both scanned and manually entered code paths.
+- No schedule data was changed. The schedule remains capped at two categories/day.
 
-- `public.MASTER` contains product master data with `"SkuCode"`, `"SkuLongName"`, and `"Catg"`; 124,570 rows were reported after upload.
-- `public.expiry_return_rules` stores 30 category rules and 2 brand rules in one table.
-- Brand rules: HIMALAYA = 60 days; KELLOGGS = 30 days.
-- Obsolete cloud expiry-upload/device/security tables were reportedly removed.
+## Google Sheets export — user-confirmed working on 2026-11-02
 
-These are historical user-reported results, not a fresh inspection of the user's Supabase project. Do not change Supabase config or claim live access.
+- Source: `public.expiry_entry_uploads`.
+- Trigger: daily near 3:15 PM Asia/Kolkata; timing is approximate.
+- Window: previous completed business day, 3 PM inclusive to next 3 PM exclusive, using `session_start`.
+- Drive hierarchy: `MahaMart Expiry Reports/YYYY/Month/D MMM <scheduled categories>`.
+- One category spreadsheet per category actually present in the source rows; all stores combined and location retained.
+- Unexpected categories get their own spreadsheet.
+- Category sheets retain all table fields, including deletion status.
+- Active NO EXPIRY marks are written to `no expiry.csv`, separate from category sheets; deleted marks are omitted.
+- Reruns refresh the dated output and update `_export_log`.
+- Existing sheet filters are removed before creating a new filter.
+- The user confirmed the live export works as intended after correcting the complete Apps Script file in the standalone editor.
 
-## Not yet verified / not yet confirmed implemented
+### Repository script warning
 
-- Android debug build and runtime behavior.
-- End-to-end direct SKU and EAN lookup against the current `MASTER` schema.
-- Offline persistence across app restart and local CSV sharing.
-- Actual 24-hour refresh behavior and error handling.
-- Android fetching/caching `expiry_return_rules`.
-- Return Rules icon/popup for today's scheduled categories plus Himalaya/Kellogg's.
-- Effective category return-window formula.
-- Continuous schedule generation after 31 December 2027.
+The repository copy at `scripts/google-apps-script/Code.gs` still contains the incorrect source expression with a double-escaped line separator. The working live editor uses:
+```javascript
+folder.createFile('no expiry.csv',lines.join('\r\n'),MimeType.CSV);
+```
+That source literal must have a single backslash before `r` and `n` in the JavaScript file. The generated CSV then contains real CRLF record separators. This documentation update intentionally does not change the script. Do not paste the stale GitHub file into the working Apps Script project.
 
-Do not describe these items as implemented until source changes are committed and build/tests provide evidence.
+## Supabase context
 
-## Target behavior
+Live project **Expiry** was accessible for read-only inspection on 2026-11-02:
+- `public.MASTER`: columns `SkuCode`, `SkuLongName`, `Catg`; 125,120 rows at time of inspection.
+- `public.expiry_return_rules`: 32 rows at time of inspection.
+- `public.expiry_entry_uploads`: expiry entry and NO EXPIRY upload data.
 
-Read `docs/CURRENT_HANDOFF.md` and `docs/EXPIRY_RETURN_RULES_AND_SCHEDULE.md` for current requirements. In short: keep expiry records local, use one return-rule table for categories and brands, prioritize brand overrides, show today's scheduled category return windows in a popup, preserve the supplied calendar through 2027, and continue the exact schedule rotation beyond 2027 without exceeding two categories per day.
+These are time-stamped observations, not permanent row counts. Do not change project settings, credentials, schema, or policies without explicit instruction.
 
-## Safety constraints
+## Product master and schedule rules
 
-- Never put a Supabase service-role key in the Android app.
-- Do not alter `public.MASTER` schema or Supabase URL/key configuration unless explicitly asked.
-- Do not reintroduce cloud expiry-entry uploads or old device/security tables without explicit user approval.
-- A GitHub commit is not a successful build or test.
+- SKU and EAN/barcode values are stacked in the source code column; preserve source order and text values.
+- Pad digit-only codes shorter than five characters to five; do not alter longer codes or truncate barcodes.
+- EAN-to-SKU canonical mapping uses first matching product name (FCFS); preserve the raw scanned code separately.
+- Schedule supplied in `inspection_schedule.json` spans 2026-10-23 to 2027-12-31 and must never exceed two categories per day.
+- Continue the existing rotation after 2027; do not restart it.
+- Brand return rules: Himalaya 60 days; Kellogg's 30 days; brand rules override category rules.
+- Proposed category effective return window is `max(configured_return_days, schedule_interval_days)`; do not alter saved source values or assume brand-floor behavior is approved.
 
-## Google Sheets export — status as of 2026-10-31
+## Not verified / future work
 
-**Manual export: verified working in the user's Apps Script environment. User later confirmed the automatic export worked. The repository script now exports only categories present in Supabase rows; this latest change still needs to be copied into the live Apps Script project and tested.**
+- Fresh Android Gradle build and installation of the latest branch.
+- Real-device verification of all NO EXPIRY paths, including soft-delete/undo and category combinations.
+- Latest CI result for the app-source commit.
+- End-to-end product lookup tests for SKU and EAN against the current master.
+- App-side fetch/cache of `expiry_return_rules`, Return Rules popup, and effective-window calculation.
+- Schedule continuation beyond 2027.
 
-- Manual `exportPreviousBusinessDayNow` completed and logged 5 rows across two actual categories; the user reran it successfully after fixing the filter error.
-- First time-driven run failed with `You can't create a filter in a sheet that already has a filter.`
-- The checked-in `scripts/google-apps-script/Code.gs` removes an existing filter before creating a new one. It creates sheets only for categories found in current Supabase rows; scheduled categories without rows do not get sheets. On rerun, generated category sheets absent from the current result are moved to Drive trash.
-- Next acceptance checks for the newly updated script: (1) paste the updated `Code.gs` into the live Apps Script editor; (2) rerun the 30 Oct 2026 export and confirm only `MASALA SPICES` and `SOAPS AND BODY WASH` remain if those are the only categories in Supabase rows; (3) test a zero-row date and confirm no category sheets are created; (4) confirm the latest time-driven execution remains Completed. Folder labels still reflect the schedule JSON.
-- Existing Sheets are static snapshots between exports; Supabase changes do not instantly propagate to Sheets.
-- Keep credentials in private Apps Script Script Properties. Do not commit the service-role key or put it in Android.
+## Safety and process
+
+- Do not modify Supabase URL/key settings or `local.properties` unless asked.
+- Never put the service-role key in the APK, GitHub, or chat.
+- Inspect branch/source before patching; no merges or branch switches without permission.
+- A GitHub commit is not proof of a build or runtime test.
+- The live Apps Script project is separate from the repository copy; do not claim GitHub commits deploy it.
