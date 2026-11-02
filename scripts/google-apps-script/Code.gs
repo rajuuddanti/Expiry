@@ -22,12 +22,12 @@ function exportBusinessDateForTesting(yyyyMMdd){
 }
 function runExportSafely_(date){
   const lock=LockService.getScriptLock();
-  if(!lock.tryLock(1000)){Logger.log('Export skipped for '+date+': another export is already running.');return;}
+  try{lock.waitLock(30000);}catch(err){notifyExportFailure_(date,err);throw err;}
   try{exportDate_(date);}catch(err){notifyExportFailure_(date,err);throw err;}finally{lock.releaseLock();}
 }
 function notifyExportFailure_(date,err){
   const email=PropertiesService.getScriptProperties().getProperty('EXPORT_ALERT_EMAIL');
-  const message='MahaMart Expiry Google Sheets export failed.\\nBusiness date: '+date+'\\nTime (IST): '+Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm:ss')+'\\nError: '+String(err&&err.stack?err.stack:err).slice(0,4000)+'\\n\\nCheck the Apps Script Executions page for the full run details.';
+  const message='MahaMart Expiry Google Sheets export failed.\nBusiness date: '+date+'\nTime (IST): '+Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm:ss')+'\nError: '+String(err&&err.stack?err.stack:err).slice(0,4000)+'\n\nCheck the Apps Script Executions page for the full run details.';
   if(!email){Logger.log('EXPORT_ALERT_EMAIL is not configured. '+message);return;}
   try{MailApp.sendEmail(email,'MahaMart Expiry export FAILED — '+date,message);}catch(mailErr){Logger.log('Could not send export failure email: '+mailErr);}
 }
