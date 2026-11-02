@@ -21,3 +21,8 @@ The schedule has at most two categories per business day. After a NO EXPIRY conf
 - If both scheduled categories are marked, block all new entries for the business day.
 - Apply this check when saving either a scanned or manually entered product. Do not disable the main screen while entries remain allowed.
 - Ignore soft-deleted NO EXPIRY confirmations.
+
+
+## 2026-11-02 — Prevent NO EXPIRY when active expiry entries exist
+
+Before saving a NO EXPIRY confirmation for a category, check the current 3 PM–3 PM business-day history for the selected store. If at least one active, non-NO-EXPIRY entry exists for that category, refuse the confirmation and tell staff to delete those entries from History first. Soft-deleted entries do not count. Categories are checked independently; for a two-category day, existing entries in one category do not prevent NO EXPIRY for the other category. Keep the check inside the save coroutine immediately before inserting the NO EXPIRY row.

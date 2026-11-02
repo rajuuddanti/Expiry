@@ -135,3 +135,8 @@ Source-level change only until CI/build and device testing are checked. Do not c
 - Script uses `session_start` for the 3 PM–to–3 PM business window. Rows created after 3 PM belong to the new session and will not be included in the export for the previous session.
 - The schedule JSON currently has dates with one category and dates with two categories. The folder name uses the category entries actually present for that date; do not invent a second category when the schedule has only one. Verify the live folder label against the schedule for that exact date.
 - Security: keep the Supabase service-role key only in Apps Script Script Properties. Never commit it or add it to Android.
+
+
+## 2026-11-02 — Prevent NO EXPIRY when active expiry entries exist
+
+Before saving a NO EXPIRY confirmation for a category, check the current 3 PM–3 PM business-day history for the selected store. If at least one active, non-NO-EXPIRY entry exists for that category, refuse the confirmation and tell staff to delete those entries from History first. Soft-deleted entries do not count. Categories are checked independently; for a two-category day, existing entries in one category do not prevent NO EXPIRY for the other category. Keep the check inside the save coroutine immediately before inserting the NO EXPIRY row.

@@ -289,6 +289,17 @@ class MainActivity : ComponentActivity() {
                     val now = LocalDateTime.now(IndiaZone)
                     val sessionDate = if (now.hour < 15) now.toLocalDate().minusDays(1) else now.toLocalDate()
                     val session = sessionDate.atTime(15, 0).atZone(IndiaZone).toOffsetDateTime().toString()
+                    // An active expiry entry proves that this category has expiry today.
+                    // Staff must delete its active entries from History before marking NO EXPIRY.
+                    val existingExpiryEntries = currentSessionEntries.filter { entry ->
+                        entry.store.equals(store, ignoreCase = true) &&
+                            !entry.expiry.equals("NO EXPIRY", ignoreCase = true) &&
+                            normalizedRuleName(entry.category) == normalizedRuleName(selectedCategory)
+                    }
+                    if (existingExpiryEntries.isNotEmpty()) {
+                        message = "$selectedCategory already has active expiry entries today. Delete them from History before marking NO EXPIRY."
+                        return@launch
+                    }
                     if (dao.activeNoExpiryCount(store, session, selectedCategory) > 0) {
                         message = "Already marked NO EXPIRY for $selectedCategory today."
                         return@launch
