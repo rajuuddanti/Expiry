@@ -647,12 +647,12 @@ class MainActivity : ComponentActivity() {
                                             } else {
                                                 todaySchedule.forEach { row ->
                                                     val markedNoExpiry = currentSessionEntries.any { entry ->
-                                                        entry.store.equals(store, true) &&
+                                                        entry.store.equals(store, true) && entry.deletedAt == null &&
                                                             entry.expiry.equals("NO EXPIRY", true) &&
                                                             normalizedRuleName(entry.noExpiryCategory) == normalizedRuleName(row.baseCategory)
                                                     }
                                                     val categoryEntries = currentSessionEntries.count { entry ->
-                                                        entry.store.equals(store, true) &&
+                                                        entry.store.equals(store, true) && entry.deletedAt == null &&
                                                             !entry.expiry.equals("NO EXPIRY", true) &&
                                                             normalizedRuleName(entry.category) == normalizedRuleName(row.baseCategory)
                                                     }
