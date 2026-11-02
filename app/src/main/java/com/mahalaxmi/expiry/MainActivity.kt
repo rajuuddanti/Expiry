@@ -831,7 +831,7 @@ class MainActivity : ComponentActivity() {
                                                         Text(item.productName, fontWeight = FontWeight.Bold)
                                                         if (item.expiry == "NO EXPIRY") {
                                                             Text("Status: NO EXPIRY FOUND", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
-                                                            Text("Checked categories: ${item.category}")
+                                                            Text("Checked category: ${item.noExpiryCategory}")
                                                         } else {
                                                             Text("SKU code: ${item.skuCode}")
                                                             Text("Ean/SKU Scanned: ${item.scannedCode}")
