@@ -33,7 +33,7 @@ Continue Mahalaxmi Expiry Manager in `rajuuddanti/Expiry`. Read these first:
 
 ## Branch and code status
 
-Recent work is associated with `feature/new-expiry-upload-table`, but branch histories have diverged. Verify branch HEAD and inspect current source files before applying patches. Historical commit IDs recorded in prior context:
+Latest NO EXPIRY work is on `feature/no-expiry-fix`, which is 4 commits ahead of `feature/new-expiry-upload-table` as of 2026-11-02. Verify branch HEAD and inspect current source files before applying patches. Historical commit IDs recorded in prior context:
 - `9002bde4b230e5475a15ecebeae374120c26bd43`
 - `ca764f735349bc2d4eea7efc0b81dbaf96392668`
 - `3dd706937bc072f77e5a15a0ac9bd6d61c911d01`
@@ -52,6 +52,15 @@ These SHAs are notes, not proof that the current branch contains all of them. No
 7. Implement the effective return-window calculation after verifying schedule intervals and user intent on brand overrides.
 8. Preserve the supplied calendar through 2027 and implement correct continuation beyond 2027, maintaining at most two categories per day.
 9. Update docs with verified implementation/test results; never claim build success without evidence.
+
+## 2026-11-02 — NO EXPIRY entry-blocking behavior
+
+- Exactly 1 scheduled category: once it is marked NO EXPIRY, block every new expiry entry for that 3 PM–3 PM business day, including unscheduled categories.
+- Exactly 2 scheduled categories: if one is marked NO EXPIRY, block only that category and continue allowing the other scheduled category plus all unscheduled categories on the main Scan screen.
+- If both scheduled categories are marked NO EXPIRY, block every new expiry entry for that business day.
+- Apply validation at the save point for both scanner-filled and manually entered codes. Do not disable the whole main screen when at least one category remains.
+- Ignore soft-deleted NO EXPIRY rows when calculating active blocks.
+- The existing schedule remains unchanged and never exceeds two categories per day.
 
 ## Accuracy/security rules
 

@@ -5,7 +5,7 @@ Last updated: 2026-10-31 (Asia/Kolkata)
 ## Continue here first
 
 Repository: `rajuuddanti/Expiry`  
-Current working branch for the recent changes/docs: `feature/new-expiry-upload-table`  
+Current working branch for the latest NO EXPIRY work: `feature/no-expiry-fix` (4 commits ahead of `feature/new-expiry-upload-table` as of 2026-11-02)  
 App name: Mahalaxmi Expiry Manager  
 Android package reported in project context: `com.mahalaxmi.expiry`
 
@@ -97,6 +97,19 @@ Recorded commit IDs from prior session:
 - `caa9ea584da921bcad72138380e8385680beab12`
 
 These commits are recorded context; verify branch history/source before assuming they are ancestors of the current branch. No Android build/test success was reported.
+
+## 2026-11-02 — NO EXPIRY entry-blocking rules
+
+The Android source implements the following business-day rule using active NO EXPIRY history rows and the actual scheduled product-master categories:
+
+- **One category scheduled:** marking that category NO EXPIRY blocks every new expiry entry for the current 3 PM–3 PM business day, including entries from unscheduled categories.
+- **Two categories scheduled:** marking NO EXPIRY for one category blocks only that category. The other scheduled category and all unscheduled categories remain available on the main Scan screen.
+- **Both scheduled categories marked NO EXPIRY:** all new expiry entries are blocked for the business day.
+- Validation runs at the final save point for scanned and manually entered codes. The main screen is not globally disabled while an allowed category remains.
+- Soft-deleted NO EXPIRY history rows do not count as active blocks.
+- The schedule remains capped at two categories per day; no schedule data or rotation rules are changed.
+
+Source-level change only until CI/build and device testing are checked. Do not claim runtime verification without evidence.
 
 ## Next steps
 

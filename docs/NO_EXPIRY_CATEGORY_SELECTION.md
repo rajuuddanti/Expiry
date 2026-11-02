@@ -10,3 +10,14 @@
 - Run `supabase/migrations/20261101_add_no_expiry_category.sql` in Supabase before installing the updated app.
 - Replace the Apps Script project code with `scripts/google-apps-script/Code.gs`.
 - This repo update does not itself build/install an APK or deploy Apps Script.
+
+
+## 2026-11-02 — Entry-blocking rule
+
+The schedule has at most two categories per business day. After a NO EXPIRY confirmation is saved:
+
+- If only one category is scheduled, block all new entries for the business day, including unscheduled categories.
+- If two categories are scheduled and only one is marked, block that marked category only. The other scheduled category and all unscheduled categories remain available from the main screen.
+- If both scheduled categories are marked, block all new entries for the business day.
+- Apply this check when saving either a scanned or manually entered product. Do not disable the main screen while entries remain allowed.
+- Ignore soft-deleted NO EXPIRY confirmations.

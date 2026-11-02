@@ -235,6 +235,14 @@ class MainActivity : ComponentActivity() {
                 scheduledRowsForDate(inspectionSchedule, currentSessionDate)
             }
 
+            // Actual product-master categories represented by today's scheduled rows.
+            // The inspection schedule is capped at two categories per business day.
+            val scheduledSupabaseCategories = remember(todayCategoryProducts) {
+                todayCategoryProducts
+                    .mapNotNull { it.category?.trim()?.takeIf { value -> value.isNotBlank() } }
+                    .distinctBy { it.uppercase() }
+            }
+
             LaunchedEffect(scannedValue) {
                 if (scannedValue.isNotBlank()) {
                     code = scannedValue.trim()
@@ -320,9 +328,34 @@ class MainActivity : ComponentActivity() {
                         val sessionDate = if (now.hour < 15) now.toLocalDate().minusDays(1) else now.toLocalDate()
                         val session = sessionDate.atTime(15, 0).atZone(IndiaZone).toOffsetDateTime().toString()
                         val entryCategory = matchedProduct?.category.orEmpty()
-                        if (entryCategory.isNotBlank() && dao.activeNoExpiryCount(store, session, entryCategory) > 0) {
-                            message = "NO EXPIRY is already marked for $entryCategory today. Delete that NO EXPIRY record from History to allow entries again."
-                            return@launch
+                        // One scheduled category marked NO EXPIRY blocks all entries.
+                        // With two scheduled categories, one mark blocks only that category;
+                        // both marks block all entries for this 3 PM business day.
+                        val markedScheduledCategories = scheduledSupabaseCategories.filter { scheduledCategory ->
+                            dao.activeNoExpiryCount(store, session, scheduledCategory) > 0
+                        }
+                        val allEntriesBlocked = when (scheduledSupabaseCategories.size) {
+                            1 -> markedScheduledCategories.isNotEmpty()
+                            2 -> markedScheduledCategories.size == 2
+                            else -> false
+                        }
+                        val entryCategoryIsMarked = entryCategory.isNotBlank() &&
+                            markedScheduledCategories.any {
+                                normalizedRuleName(it) == normalizedRuleName(entryCategory)
+                            }
+                        when {
+                            allEntriesBlocked -> {
+                                message = if (scheduledSupabaseCategories.size == 1) {
+                                    "NO EXPIRY is already marked for ${scheduledSupabaseCategories.first()}. All expiry entries are blocked for this business day."
+                                } else {
+                                    "NO EXPIRY is marked for both scheduled categories. All expiry entries are blocked for this business day."
+                                }
+                                return@launch
+                            }
+                            entryCategoryIsMarked -> {
+                                message = "NO EXPIRY is already marked for $entryCategory. Entries for this category are blocked today."
+                                return@launch
+                            }
                         }
                         dao.insertEntry(
                             ExpiryEntryEntity(
@@ -897,9 +930,6 @@ class MainActivity : ComponentActivity() {
                             }
 
                             AppScreen.Settings -> {
-                                val scheduledSupabaseCategories = todayCategoryProducts
-                                    .mapNotNull { it.category?.trim()?.takeIf { value -> value.isNotBlank() } }
-                                    .distinctBy { it.uppercase() }
                                 Column(Modifier.fillMaxSize().padding(16.dp)) {
                                     Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                                     Text("Product master import and local data", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))

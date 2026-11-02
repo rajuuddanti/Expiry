@@ -1,6 +1,6 @@
 # NO EXPIRY FOUND — Implementation Notes
 
-Branch: `feature/new-expiry-upload-table`
+Branch: `feature/no-expiry-fix`
 
 ## Behavior added in source
 - Settings includes a `NO EXPIRY FOUND` action.
@@ -24,3 +24,16 @@ GitHub source changes are committed, but Android build/runtime and live Supabase
 4. Verify normal expiry records still upload with `expiry = YES`.
 5. Confirm Google Sheets shows the `expiry` column.
 Then proceed to multi-device testing across different stores.
+
+
+## 2026-11-02 — Entry blocking based on scheduled category count
+
+The current business-day schedule has a maximum of two categories. Active NO EXPIRY history controls entry permission as follows:
+
+- One scheduled category marked NO EXPIRY: block all new expiry entries, including unscheduled categories.
+- Two scheduled categories with one marked NO EXPIRY: block only that category; the other scheduled category and unscheduled categories remain allowed.
+- Two scheduled categories both marked NO EXPIRY: block all new expiry entries.
+- Validation is performed when saving an entry, so the main Scan screen remains usable for permitted categories.
+- Soft-deleted NO EXPIRY rows do not block entries.
+
+Build, CI and device verification must be checked separately.
