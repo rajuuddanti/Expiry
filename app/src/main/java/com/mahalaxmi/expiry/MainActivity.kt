@@ -236,6 +236,17 @@ class MainActivity : ComponentActivity() {
             }
             val syncRepository = remember { SupabaseSyncRepository(applicationContext, dao) }
             var syncMessage by remember { mutableStateOf("Not synced yet") }
+            var lastMasterSync by remember { mutableStateOf(prefs.getString("master_last_sync", null)) }
+            val lastMasterSyncLabel = remember(lastMasterSync) {
+                val syncedAt = lastMasterSync?.let { runCatching { LocalDateTime.parse(it) }.getOrNull() }
+                if (syncedAt == null) {
+                    "NOT YET SYNCED"
+                } else {
+                    "LAST SYNCED: " + syncedAt.atZone(IndiaZone)
+                        .format(DateTimeFormatter.ofPattern("d MMM yyyy - h:mm a", java.util.Locale.ENGLISH))
+                        .uppercase(java.util.Locale.ENGLISH)
+                }
+            }
             var isSyncing by remember { mutableStateOf(false) }
             var syncCompleted by remember { mutableIntStateOf(0) }
             var syncTotal by remember { mutableIntStateOf(0) }
@@ -1071,7 +1082,8 @@ class MainActivity : ComponentActivity() {
                                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                             Text("SUPABASE SYNC", fontWeight = FontWeight.Bold, color = MahalaxmiRed)
-                                            Text(syncMessage, fontSize = 13.sp)
+                                            Text(lastMasterSyncLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                            Text(syncMessage, fontSize = 12.sp, color = Color.Gray)
                                             if (isSyncing || syncTotal > 0) {
                                                 val progress = if (syncTotal > 0) (syncCompleted.toFloat() / syncTotal.toFloat()).coerceIn(0f, 1f) else 0f
                                                 LinearProgressIndicator(
@@ -1102,6 +1114,10 @@ class MainActivity : ComponentActivity() {
                                                                     syncPhase = progress.phase
                                                                 }
                                                                 syncMessage = result.message
+                                                                val completedAt = LocalDateTime.now(IndiaZone)
+                                                                val completedAtValue = completedAt.toString()
+                                                                prefs.edit().putString("master_last_sync", completedAtValue).apply()
+                                                                lastMasterSync = completedAtValue
                                                                 syncPhase = "Complete"
                                                                 syncCompleted = result.productsUpdated
                                                                 syncTotal = result.productsUpdated
