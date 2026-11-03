@@ -99,7 +99,7 @@ private fun masterCategoryAliases(value: String): List<String> {
         "DEOSANDSPRAYS" -> listOf("DEOS  AND SPRAYS")
         "HEALTHANDOTC" -> listOf("HEALTH  AND  OTC")
         "HOUSEANDKITCHENCLEANING" -> listOf("HOUSE  AND  KITCHEN CLEANING")
-        "JAMSSAU..." -> listOf("JAMS  AND  SAUCES")
+        "JAMSANDSAUCES" -> listOf("JAMS  AND  SAUCES")
         "NOODLESANDPASTA" -> listOf("NOODLES  AND  PASTA")
         "DAIRYFOODS" -> listOf("DAIRY FOODS", "GHEES")
         else -> listOf(value.trim())
