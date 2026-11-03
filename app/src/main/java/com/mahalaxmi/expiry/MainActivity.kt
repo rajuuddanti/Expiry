@@ -197,11 +197,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
             val syncRepository = remember { SupabaseSyncRepository(applicationContext, dao) }
-            LaunchedEffect(syncRepository) {
-                runCatching { syncRepository.fetchReturnRules() }
-                    .onSuccess { returnRules = it }
-                    .onFailure { returnRulesError = it.message ?: "Could not load Supabase return rules." }
-            }
             var syncMessage by remember { mutableStateOf("Not synced yet") }
             var lastMasterSync by remember { mutableStateOf(prefs.getString("master_last_sync", null)) }
             val lastMasterSyncLabel = remember(lastMasterSync) {
@@ -249,6 +244,11 @@ class MainActivity : ComponentActivity() {
             var returnRules by remember { mutableStateOf(emptyList<SupabaseSyncRepository.ReturnRule>()) }
             var returnRulesLoading by remember { mutableStateOf(false) }
             var returnRulesError by remember { mutableStateOf("") }
+            LaunchedEffect(syncRepository) {
+                runCatching { syncRepository.fetchReturnRules() }
+                    .onSuccess { returnRules = it }
+                    .onFailure { returnRulesError = it.message ?: "Could not load Supabase return rules." }
+            }
             // Active category names and return days come only from Supabase expiry_return_rules.
             val todaySchedule = remember(returnRules) {
                 returnRules
