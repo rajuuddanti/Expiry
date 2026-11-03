@@ -51,46 +51,8 @@ private val MahalaxmiRed = Color(0xFFB71C1C)
 private val IndiaZone = ZoneId.of("Asia/Kolkata")
 private enum class AppScreen { Scan, Lookup, History, Settings }
 
-private data class InspectionScheduleRow(val date: LocalDate, val category: String, val cycleDays: Int) {
+private data class InspectionScheduleRow(val category: String, val cycleDays: Int) {
     val baseCategory: String get() = category.substringBefore("(").trim().uppercase()
-}
-
-private fun loadInspectionSchedule(activity: ComponentActivity): List<InspectionScheduleRow> = runCatching {
-    val json = org.json.JSONArray(activity.assets.open("inspection_schedule.json").bufferedReader().use { it.readText() })
-    buildList {
-        for (i in 0 until json.length()) {
-            val row = json.getJSONObject(i)
-            val date = runCatching { LocalDate.parse(row.getString("date")) }.getOrNull() ?: continue
-            val category = row.optString("category").trim()
-            val cycle = row.optInt("cycleDays", 0)
-            if (category.isNotBlank() && cycle > 0) add(InspectionScheduleRow(date, category, cycle))
-        }
-    }
-}.getOrDefault(emptyList())
-
-/** Keeps the supplied calendar unchanged; beyond its end, continue each category's last cycle,
- * assigning at most two categories per day and rolling overdue categories forward in due-date order. */
-private fun scheduledRowsForDate(source: List<InspectionScheduleRow>, target: LocalDate): List<InspectionScheduleRow> {
-    if (source.isEmpty()) return emptyList()
-    val exact = source.filter { it.date == target }
-    if (exact.isNotEmpty() || target <= source.maxOf { it.date }) return exact
-
-    data class CycleState(val category: String, val cycleDays: Int, var nextDue: LocalDate)
-    val latest = source.groupBy { it.baseCategory }.mapNotNull { (_, rows) ->
-        val last = rows.maxByOrNull { it.date } ?: return@mapNotNull null
-        CycleState(last.baseCategory, last.cycleDays, last.date.plusDays(last.cycleDays.toLong()))
-    }.toMutableList()
-    var day = source.maxOf { it.date }.plusDays(1)
-    var result = emptyList<InspectionScheduleRow>()
-    while (day <= target) {
-        val due = latest.filter { !it.nextDue.isAfter(day) }
-            .sortedWith(compareBy<CycleState> { it.nextDue }.thenBy { it.category })
-            .take(2)
-        result = due.map { InspectionScheduleRow(day, it.category, it.cycleDays) }
-        due.forEach { it.nextDue = day.plusDays(it.cycleDays.toLong()) }
-        day = day.plusDays(1)
-    }
-    return result
 }
 
 private fun normalizedRuleName(value: String): String =
@@ -235,6 +197,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
             val syncRepository = remember { SupabaseSyncRepository(applicationContext, dao) }
+            LaunchedEffect(syncRepository) {
+                runCatching { syncRepository.fetchReturnRules() }
+                    .onSuccess { returnRules = it }
+                    .onFailure { returnRulesError = it.message ?: "Could not load Supabase return rules." }
+            }
             var syncMessage by remember { mutableStateOf("Not synced yet") }
             var lastMasterSync by remember { mutableStateOf(prefs.getString("master_last_sync", null)) }
             val lastMasterSyncLabel = remember(lastMasterSync) {
@@ -282,19 +249,16 @@ class MainActivity : ComponentActivity() {
             var returnRules by remember { mutableStateOf(emptyList<SupabaseSyncRepository.ReturnRule>()) }
             var returnRulesLoading by remember { mutableStateOf(false) }
             var returnRulesError by remember { mutableStateOf("") }
-            val inspectionSchedule = remember { loadInspectionSchedule(this@MainActivity) }
-            // The app's business day rolls over at 3 PM local time, not midnight.
-            // Before 3 PM, category scheduling must still use the previous calendar date.
-            val todaySchedule = remember(currentSessionDate, inspectionSchedule) {
-                scheduledRowsForDate(inspectionSchedule, currentSessionDate)
+            // Active category names and return days come only from Supabase expiry_return_rules.
+            val todaySchedule = remember(returnRules) {
+                returnRules
+                    .filter { it.ruleType == "category" }
+                    .map { InspectionScheduleRow(it.matchValue, it.returnDays) }
+                    .distinctBy { normalizedRuleName(it.category) }
             }
 
-            // Actual product-master categories represented by today's scheduled rows.
-            // The inspection schedule is capped at two categories per business day.
-            val scheduledSupabaseCategories = remember(todayCategoryProducts) {
-                todayCategoryProducts
-                    .mapNotNull { it.category?.trim()?.takeIf { value -> value.isNotBlank() } }
-                    .distinctBy { it.uppercase() }
+            val scheduledSupabaseCategories = remember(todaySchedule) {
+                todaySchedule.map { it.baseCategory }.distinct()
             }
 
             LaunchedEffect(scannedValue) {
@@ -1082,7 +1046,19 @@ class MainActivity : ComponentActivity() {
                                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                             Text("SUPABASE SYNC", fontWeight = FontWeight.Bold, color = MahalaxmiRed)
-                                            Text(lastMasterSyncLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                            Surface(
+                                                color = Color(0xFFFFF3F3),
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(
+                                                    lastMasterSyncLabel,
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MahalaxmiRed
+                                                )
+                                            }
                                             Text(syncMessage, fontSize = 12.sp, color = Color.Gray)
                                             if (isSyncing || syncTotal > 0) {
                                                 val progress = if (syncTotal > 0) (syncCompleted.toFloat() / syncTotal.toFloat()).coerceIn(0f, 1f) else 0f
