@@ -95,12 +95,12 @@ private fun normalizedRuleName(value: String): String = value.uppercase().filter
 private fun masterCategoryAliases(value: String): List<String> {
     val key = normalizedRuleName(value)
     return when (key) {
-        "CHOCOLATES" -> listOf("CHOCOLATES", "CHOCLATES")
-        "DEOSANDSPRAYS" -> listOf("DEOS AND SPRAYS")
-        "HEALTHANDOTC" -> listOf("HEALTH AND OTC")
-        "HOUSEANDKITCHENCLEANING" -> listOf("HOUSE AND KITCHEN CLEANING")
+        "CHOCOLATES", "CHOCLATES" -> listOf("CHOCLATES", "CHOCOLATES")
+        "DEOSANDSPRAYS" -> listOf("DEOS  AND SPRAYS")
+        "HEALTHANDOTC" -> listOf("HEALTH  AND  OTC")
+        "HOUSEANDKITCHENCLEANING" -> listOf("HOUSE  AND  KITCHEN CLEANING")
         "JAMSSAU..." -> listOf(value)
-        "NOODLESANDPASTA" -> listOf("NOODLES AND PASTA")
+        "NOODLESANDPASTA" -> listOf("NOODLES  AND  PASTA")
         "DAIRYFOODS" -> listOf("DAIRY FOODS", "GHEES")
         else -> listOf(value.trim())
     }
@@ -328,7 +328,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            LaunchedEffect(todaySchedule, prefs.getString("master_last_sync", null)) {
+            LaunchedEffect(todaySchedule, lastMasterSync) {
                 val categoryKeys = todaySchedule.flatMap(::scheduleMasterCategoryKeys)
                     .distinctBy { normalizedRuleName(it) }
                 todayCategoryProducts = if (categoryKeys.isEmpty()) emptyList() else
