@@ -51,19 +51,77 @@ private val MahalaxmiRed = Color(0xFFB71C1C)
 private val IndiaZone = ZoneId.of("Asia/Kolkata")
 private enum class AppScreen { Scan, Lookup, History, Settings }
 
-private data class InspectionScheduleRow(val category: String, val cycleDays: Int) {
+private data class InspectionScheduleRow(val date: LocalDate, val category: String, val cycleDays: Int) {
     val baseCategory: String get() = category.substringBefore("(").trim().uppercase()
 }
 
-private fun normalizedRuleName(value: String): String =
-    value.uppercase().filter { it.isLetterOrDigit() }
+private fun loadInspectionSchedule(activity: ComponentActivity): List<InspectionScheduleRow> = runCatching {
+    val json = org.json.JSONArray(activity.assets.open("inspection_schedule.json").bufferedReader().use { it.readText() })
+    buildList {
+        for (i in 0 until json.length()) {
+            val row = json.getJSONObject(i)
+            val date = runCatching { LocalDate.parse(row.getString("date")) }.getOrNull() ?: continue
+            val category = row.optString("category").trim()
+            val cycle = row.optInt("cycleDays", 0)
+            if (category.isNotBlank() && cycle > 0) add(InspectionScheduleRow(date, category, cycle))
+        }
+    }
+}.getOrDefault(emptyList())
+
+/** Preserve the supplied calendar. Beyond its end, continue category cycles, at most two per day. */
+private fun scheduledRowsForDate(source: List<InspectionScheduleRow>, target: LocalDate): List<InspectionScheduleRow> {
+    if (source.isEmpty()) return emptyList()
+    val exact = source.filter { it.date == target }
+    if (exact.isNotEmpty() || target <= source.maxOf { it.date }) return exact
+    data class CycleState(val category: String, val cycleDays: Int, var nextDue: LocalDate)
+    val latest = source.groupBy { it.baseCategory }.mapNotNull { (_, rows) ->
+        val last = rows.maxByOrNull { it.date } ?: return@mapNotNull null
+        CycleState(last.baseCategory, last.cycleDays, last.date.plusDays(last.cycleDays.toLong()))
+    }.toMutableList()
+    var day = source.maxOf { it.date }.plusDays(1)
+    var result = emptyList<InspectionScheduleRow>()
+    while (day <= target) {
+        val due = latest.filter { !it.nextDue.isAfter(day) }
+            .sortedWith(compareBy<CycleState> { it.nextDue }.thenBy { it.category }).take(2)
+        result = due.map { InspectionScheduleRow(day, it.category, it.cycleDays) }
+        due.forEach { it.nextDue = day.plusDays(it.cycleDays.toLong()) }
+        day = day.plusDays(1)
+    }
+    return result
+}
+
+private fun normalizedRuleName(value: String): String = value.uppercase().filter { it.isLetterOrDigit() }
+
+private fun masterCategoryAliases(value: String): List<String> {
+    val key = normalizedRuleName(value)
+    return when (key) {
+        "CHOCOLATES" -> listOf("CHOCOLATES", "CHOCLATES")
+        "DEOSANDSPRAYS" -> listOf("DEOS AND SPRAYS")
+        "HEALTHANDOTC" -> listOf("HEALTH AND OTC")
+        "HOUSEANDKITCHENCLEANING" -> listOf("HOUSE AND KITCHEN CLEANING")
+        "JAMSSAU..." -> listOf(value)
+        "NOODLESANDPASTA" -> listOf("NOODLES AND PASTA")
+        "DAIRYFOODS" -> listOf("DAIRY FOODS", "GHEES")
+        else -> listOf(value.trim())
+    }
+}
+
+private fun scheduleMasterCategoryKeys(row: InspectionScheduleRow): List<String> {
+    val base = row.category.substringBefore("(").trim()
+    return base.split("/", "&").flatMap(::masterCategoryAliases).distinctBy { normalizedRuleName(it) }
+}
 
 private fun categoryRuleFor(category: String, rules: List<SupabaseSyncRepository.ReturnRule>): SupabaseSyncRepository.ReturnRule? {
-    val key = normalizedRuleName(category.substringBefore("("))
-    return rules.filter { it.ruleType == "category" }.firstOrNull {
-        val ruleKey = normalizedRuleName(it.matchValue)
-        key.contains(ruleKey) || ruleKey.contains(key)
-    }
+    val categoryKeys = masterCategoryAliases(category).map(::normalizedRuleName).toSet()
+    return rules.firstOrNull { it.ruleType == "category" && normalizedRuleName(it.matchValue) in categoryKeys }
+}
+
+private fun scheduleRowForMasterCategory(
+    category: String,
+    rows: List<InspectionScheduleRow>
+): InspectionScheduleRow? {
+    val key = normalizedRuleName(category)
+    return rows.firstOrNull { row -> scheduleMasterCategoryKeys(row).any { normalizedRuleName(it) == key } }
 }
 
 class MainActivity : ComponentActivity() {
@@ -249,16 +307,15 @@ class MainActivity : ComponentActivity() {
                     .onSuccess { returnRules = it }
                     .onFailure { returnRulesError = it.message ?: "Could not load Supabase return rules." }
             }
-            // Active category names and return days come only from Supabase expiry_return_rules.
-            val todaySchedule = remember(returnRules) {
-                returnRules
-                    .filter { it.ruleType == "category" }
-                    .map { InspectionScheduleRow(it.matchValue, it.returnDays) }
-                    .distinctBy { normalizedRuleName(it.category) }
+            // Daily category assignment comes from the inspection calendar.
+            // Return-day values remain exclusively in Supabase expiry_return_rules.
+            val inspectionSchedule = remember { loadInspectionSchedule(this@MainActivity) }
+            val todaySchedule = remember(currentSessionDate, inspectionSchedule) {
+                scheduledRowsForDate(inspectionSchedule, currentSessionDate)
             }
-
-            val scheduledSupabaseCategories = remember(todaySchedule) {
-                todaySchedule.map { it.baseCategory }.distinct()
+            val scheduledSupabaseCategories = remember(todayCategoryProducts) {
+                todayCategoryProducts.mapNotNull { it.category?.trim()?.takeIf(String::isNotBlank) }
+                    .distinctBy { normalizedRuleName(it) }
             }
 
             LaunchedEffect(scannedValue) {
@@ -271,12 +328,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            LaunchedEffect(todaySchedule) {
-                val categoryKeys = todaySchedule.flatMap { row ->
-                    listOf(row.category.trim().uppercase(), row.baseCategory.trim().uppercase())
-                }.distinct()
+            LaunchedEffect(todaySchedule, prefs.getString("master_last_sync", null)) {
+                val categoryKeys = todaySchedule.flatMap(::scheduleMasterCategoryKeys)
+                    .distinctBy { normalizedRuleName(it) }
                 todayCategoryProducts = if (categoryKeys.isEmpty()) emptyList() else
-                    runCatching { dao.getProductsForCategories(categoryKeys) }.getOrDefault(emptyList())
+                    runCatching { dao.getProductsForCategories(categoryKeys.map { it.uppercase() }) }
+                        .getOrDefault(emptyList())
             }
 
             LaunchedEffect(code) {
@@ -525,7 +582,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 if (categoryMismatchPending) {
-                    val todayCategories = todaySchedule.map { it.baseCategory }.distinct()
+                    val todayCategories = scheduledSupabaseCategories
                     AlertDialog(
                         onDismissRequest = { categoryMismatchPending = false },
                         title = { Text("Category mismatch") },
@@ -835,8 +892,10 @@ class MainActivity : ComponentActivity() {
                                                     current.year, current.monthValue - 1, current.dayOfMonth
                                                 )
                                                 val rule = categoryRuleFor(category, returnRules)
-                                                if (rule != null) {
-                                                    val maxAllowed = LocalDate.now(IndiaZone).plusDays(rule.returnDays.toLong())
+                                                val scheduledRow = scheduleRowForMasterCategory(category, todaySchedule)
+                                                if (rule != null || scheduledRow != null) {
+                                                    val effectiveDays = maxOf(rule?.returnDays ?: 0, scheduledRow?.cycleDays ?: 0)
+                                                    val maxAllowed = LocalDate.now(IndiaZone).plusDays(effectiveDays.toLong())
                                                     picker.datePicker.maxDate = maxAllowed.atStartOfDay(IndiaZone).toInstant().toEpochMilli()
                                                 }
                                                 picker.show()
@@ -852,7 +911,7 @@ class MainActivity : ComponentActivity() {
                                         onClick = {
                                             vibrateFeedback(70L)
                                             val enteredCategory = normalizedRuleName(category)
-                                            val allowedToday = todaySchedule.map { normalizedRuleName(it.baseCategory) }
+                                            val allowedToday = scheduledSupabaseCategories.map(::normalizedRuleName)
                                             if (enteredCategory.isNotBlank() && enteredCategory !in allowedToday) {
                                                 categoryMismatchPending = true
                                             } else {
@@ -883,8 +942,8 @@ class MainActivity : ComponentActivity() {
                                     Modifier.fillMaxSize().padding(16.dp),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    todaySchedule.forEach { row ->
-                                        Text(row.baseCategory, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                    scheduledSupabaseCategories.forEach { actualCategory ->
+                                        Text(actualCategory, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                     }
                                     OutlinedTextField(
                                         value = lookupQuery,
