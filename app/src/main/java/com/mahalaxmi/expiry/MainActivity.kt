@@ -742,12 +742,16 @@ class MainActivity : ComponentActivity() {
                                         ) { Text("ⓘ Rules", fontSize = 11.sp, color = MahalaxmiRed, fontWeight = FontWeight.Bold, maxLines = 1) }
                                     }
                                     if (showReturnRules) {
-                                        val categoryRules = todaySchedule.mapNotNull { row ->
-                                            val rule = categoryRuleFor(row.category, returnRules)
-                                            rule?.let {
-                                                val effective = maxOf(it.returnDays, row.cycleDays)
-                                                Triple(row, it, effective)
-                                            }
+                                        val categoryRules = todaySchedule.flatMap { row ->
+                                            scheduleMasterCategoryKeys(row)
+                                                .mapNotNull { scheduledCategory ->
+                                                    val rule = categoryRuleFor(scheduledCategory, returnRules)
+                                                    rule?.let {
+                                                        val effective = maxOf(it.returnDays, row.cycleDays)
+                                                        Triple(it.matchValue, it, effective)
+                                                    }
+                                                }
+                                                .distinctBy { normalizedRuleName(it.first) }
                                         }
                                         val brandRules = returnRules.filter { it.ruleType == "brand" }
                                             .sortedByDescending { it.priority }
@@ -762,12 +766,17 @@ class MainActivity : ComponentActivity() {
                                                         returnRulesError.isNotBlank() -> Text("Could not load rules: $returnRulesError")
                                                         todaySchedule.isEmpty() -> Text("No category is scheduled for today.")
                                                         categoryRules.isEmpty() -> Text("No matching category rules were found for today's schedule.")
-                                                        else -> categoryRules.forEach { (row, rule, effective) ->
+                                                        else -> categoryRules.forEach { (categoryName, rule, effective) ->
                                                             Column {
-                                                                Text(row.baseCategory, fontWeight = FontWeight.SemiBold)
+                                                                Text(categoryName, fontWeight = FontWeight.SemiBold)
                                                                 Text("Return days: ${effective} days", fontSize = 13.sp)
                                                                 if (effective != rule.returnDays) {
-                                                                    Text("Configured: ${rule.returnDays} days • Cycle: ${row.cycleDays} days", fontSize = 11.sp, color = Color.Gray)
+                                                                    val scheduleCycle = todaySchedule.firstOrNull { row ->
+                                                                        scheduleMasterCategoryKeys(row).any {
+                                                                            normalizedRuleName(it) == normalizedRuleName(categoryName)
+                                                                        }
+                                                                    }?.cycleDays
+                                                                    Text("Configured: ${rule.returnDays} days • Cycle: ${scheduleCycle ?: 0} days", fontSize = 11.sp, color = Color.Gray)
                                                                 }
                                                             }
                                                         }
