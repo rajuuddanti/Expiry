@@ -115,18 +115,22 @@ private fun categoryRuleFor(category: String, rules: List<SupabaseSyncRepository
     val categoryRules = rules.filter { it.ruleType == "category" }
     val categoryKey = normalizedRuleName(category)
 
-    // Prefer an exact rule so paired categories such as DAIRY FOODS and GHEES
-    // keep their own return-day values even though the schedule maps them together.
+    // Return-day rules always belong to the exact category. In particular,
+    // DAIRY FOODS and GHEES must never borrow each other's return-day values.
     val exactMatch = categoryRules.firstOrNull {
         normalizedRuleName(it.matchValue) == categoryKey
     }
     if (exactMatch != null) return exactMatch
 
-    // Only fall back to the bidirectional alias group when this exact category
-    // has no rule of its own (e.g. CHOCOLATES vs the MASTER spelling CHOCLATES).
-    val aliasKeys = masterCategoryAliases(category).map(::normalizedRuleName).toSet()
+    // The only return-rule spelling fallback is the known MASTER typo:
+    // CHOCOLATES in the schedule may be stored as CHOCLATES in MASTER/rules.
+    // BISCUITS, DAIRY FOODS and GHEES always require their own exact rules.
+    val isChocolateSpelling = categoryKey == "CHOCOLATES" || categoryKey == "CHOCLATES"
+    if (!isChocolateSpelling) return null
+
     return categoryRules.firstOrNull {
-        normalizedRuleName(it.matchValue) in aliasKeys
+        val ruleKey = normalizedRuleName(it.matchValue)
+        ruleKey == "CHOCOLATES" || ruleKey == "CHOCLATES"
     }
 }
 
