@@ -112,8 +112,22 @@ private fun scheduleMasterCategoryKeys(row: InspectionScheduleRow): List<String>
 }
 
 private fun categoryRuleFor(category: String, rules: List<SupabaseSyncRepository.ReturnRule>): SupabaseSyncRepository.ReturnRule? {
-    val categoryKeys = masterCategoryAliases(category).map(::normalizedRuleName).toSet()
-    return rules.firstOrNull { it.ruleType == "category" && normalizedRuleName(it.matchValue) in categoryKeys }
+    val categoryRules = rules.filter { it.ruleType == "category" }
+    val categoryKey = normalizedRuleName(category)
+
+    // Prefer an exact rule so paired categories such as DAIRY FOODS and GHEES
+    // keep their own return-day values even though the schedule maps them together.
+    val exactMatch = categoryRules.firstOrNull {
+        normalizedRuleName(it.matchValue) == categoryKey
+    }
+    if (exactMatch != null) return exactMatch
+
+    // Only fall back to the bidirectional alias group when this exact category
+    // has no rule of its own (e.g. CHOCOLATES vs the MASTER spelling CHOCLATES).
+    val aliasKeys = masterCategoryAliases(category).map(::normalizedRuleName).toSet()
+    return categoryRules.firstOrNull {
+        normalizedRuleName(it.matchValue) in aliasKeys
+    }
 }
 
 private fun scheduleRowForMasterCategory(
