@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MahaMart Expiry Schedule</title>
+<style>
+:root{--red:#b71c1c;--ink:#202124;--muted:#687078;--bg:#f5f6f8;--line:#e7e9ed;--green:#16794b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif}
+header{background:var(--red);color:#fff;padding:22px 18px;text-align:center}
+header .brand{font-size:13px;letter-spacing:2px;font-weight:700;opacity:.9}
+header h1{font-size:24px;margin:8px 0 4px}header p{margin:0;font-size:13px;opacity:.9}
+main{max-width:720px;margin:22px auto;padding:0 14px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 3px 14px #00000008}
+.datebar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+button{border:0;border-radius:10px;padding:11px 14px;font-weight:700;cursor:pointer}
+.nav{background:#f0f1f3;color:#30343a;font-size:20px;min-width:44px}
+.today{background:var(--red);color:#fff}
+.dateinfo{text-align:center;flex:1}.dateinfo strong{display:block;font-size:19px}.dateinfo span{font-size:12px;color:var(--muted)}
+.dateinput{display:block;width:100%;margin-top:16px;border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit}
+.status{font-size:12px;color:var(--muted);margin:14px 2px 0;text-align:center}
+.days{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:18px}
+.day-panel{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px;min-width:0}
+.day-panel.current{border:2px solid var(--red)}
+.day-label{font-size:12px;letter-spacing:1px;font-weight:800;color:var(--red)}
+.day-date{font-size:13px;color:var(--muted);margin:5px 0 13px}
+.day-category{padding:11px 0;border-top:1px solid var(--line);font-size:14px;font-weight:700;line-height:1.35}
+.day-empty{font-size:13px;color:var(--muted);line-height:1.45;padding:10px 0}
+@media(max-width:620px){.days{grid-template-columns:1fr}.day-panel{padding:16px}}
+.cards{display:grid;gap:12px}.card{background:#fff;border:1px solid var(--line);border-left:5px solid var(--red);border-radius:13px;padding:17px}
+.card .number{font-size:11px;color:var(--red);font-weight:700;letter-spacing:1px}
+.card h2{font-size:18px;margin:7px 0 0;line-height:1.35}
+.empty{background:#fff;border:1px dashed #cbd0d7;border-radius:13px;padding:24px;text-align:center;color:var(--muted);line-height:1.5}
+.note{font-size:12px;color:var(--muted);text-align:center;margin:18px 8px 28px;line-height:1.5}
+footer{text-align:center;color:#858b93;font-size:11px;padding:0 10px 24px}
+@media(max-width:420px){header h1{font-size:21px}.panel{padding:14px}.dateinfo strong{font-size:16px}.card h2{font-size:16px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">MAHALAXMI GROUP</div>
+  <h1>Expiry Inspection Schedule</h1>
+  <p>Read-only daily category reference</p>
+</header>
+<main>
+  <section class="panel">
+    <div class="dateinfo" style="text-align:center">
+      <strong id="dateLabel">Loading…</strong>
+      <span>Current business date · Resets daily at 3:00 PM IST</span>
+    </div>
+    <div class="status" id="status">Loading the latest inspection calendar…</div>
+  </section>
+  <div class="days" id="days"></div>
+  <p class="note">This page is read-only. It does not scan products, save entries, sync data, or modify the expiry app.</p>
+</main>
+<footer>Schedule source: MahaMart Expiry Manager inspection calendar</footer>
+<script>
+const SCHEDULE_URL = "https://raw.githubusercontent.com/rajuuddanti/Expiry/feature/main-screen-redesign/app/src/main/assets/inspection_schedule.json";
+let schedule = [];
+function businessDateIndia(){
+  const parts = new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",hourCycle:"h23"}).formatToParts(new Date());
+  const p = Object.fromEntries(parts.map(x=>[x.type,x.value]));
+  const d = new Date(Date.UTC(+p.year,+p.month-1,+p.day));
+  if (+p.hour < 15) d.setUTCDate(d.getUTCDate()-1);
+  return d.toISOString().slice(0,10);
+}
+function parseDate(s){return new Date(s+"T00:00:00Z")}
+function isoDate(d){return d.toISOString().slice(0,10)}
+function addDays(s,n){const d=parseDate(s);d.setUTCDate(d.getUTCDate()+n);return isoDate(d)}
+function baseCategory(category){return category.split("(")[0].trim().toUpperCase()}
+function scheduledRowsForDate(target){
+  if(!schedule.length)return [];
+  const exact=schedule.filter(x=>x.date===target);
+  const maxDate=schedule.reduce((m,x)=>x.date>m?x.date:m,"0000-00-00");
+  if(exact.length || target<=maxDate)return exact;
+  const grouped=new Map();
+  for(const row of schedule){
+    const key=baseCategory(row.category);
+    const old=grouped.get(key);
+    if(!old || row.date>old.date)grouped.set(key,row);
+  }
+  const states=[...grouped.values()].map(row=>({
+    category:baseCategory(row.category),
+    cycleDays:row.cycleDays,
+    nextDue:addDays(row.date,row.cycleDays)
+  }));
+  let day=addDays(maxDate,1), result=[];
+  while(day<=target){
+    const due=states.filter(x=>x.nextDue<=day)
+      .sort((a,b)=>a.nextDue.localeCompare(b.nextDue)||a.category.localeCompare(b.category))
+      .slice(0,2);
+    result=due.map(x=>({date:day,category:x.category,cycleDays:x.cycleDays}));
+    due.forEach(x=>x.nextDue=addDays(day,x.cycleDays));
+    day=addDays(day,1);
+  }
+  return result;
+}
+function displayDate(s){
+  return new Intl.DateTimeFormat("en-IN",{timeZone:"UTC",weekday:"short",day:"numeric",month:"short"}).format(parseDate(s));
+}
+function render(){
+  const today=businessDateIndia();
+  document.getElementById("dateLabel").textContent=displayDate(today);
+  const days=[
+    {date:addDays(today,-1),label:"PREVIOUS DAY",current:false},
+    {date:today,label:"TODAY",current:true},
+    {date:addDays(today,1),label:"NEXT DAY",current:false}
+  ];
+  const host=document.getElementById("days");
+  host.innerHTML="";
+  days.forEach(day=>{
+    const rows=scheduledRowsForDate(day.date);
+    const panel=document.createElement("section");
+    panel.className="day-panel"+(day.current?" current":"");
+    const label=document.createElement("div");label.className="day-label";label.textContent=day.label;
+    const date=document.createElement("div");date.className="day-date";date.textContent=displayDate(day.date);
+    panel.append(label,date);
+    if(!rows.length){
+      const empty=document.createElement("div");empty.className="day-empty";empty.textContent="No category scheduled.";
+      panel.append(empty);
+    }else{
+      rows.forEach(row=>{
+        const item=document.createElement("div");item.className="day-category";item.textContent=row.category;
+        panel.append(item);
+      });
+    }
+    host.append(panel);
+  });
+}
+async function init(){
+  try{
+    const response=await fetch(SCHEDULE_URL,{cache:"no-store"});
+    if(!response.ok)throw new Error("Calendar file could not be loaded.");
+    schedule=await response.json();
+    if(!Array.isArray(schedule))throw new Error("Calendar format is not valid.");
+    schedule=schedule.filter(x=>x.date&&x.category&&Number(x.cycleDays)>0);
+    document.getElementById("status").textContent=`Calendar loaded · ${schedule.length} scheduled rows · read-only`;
+    render();
+  }catch(err){
+    document.getElementById("status").textContent="Could not load the schedule. Please check your internet connection and reopen this page.";
+    document.getElementById("dateLabel").textContent="Schedule unavailable";
+  }
+}
+init();
+</script>
+</body>
+</html>
