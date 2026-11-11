@@ -356,6 +356,18 @@ class MainActivity : ComponentActivity() {
                     .onSuccess { returnRules = it }
                     .onFailure { returnRulesError = it.message ?: "Could not load Supabase return rules." }
             }
+            LaunchedEffect(Unit) {
+                delay(1200L)
+                runCatching { AppUpdateManager.checkForUpdate() }
+                    .onSuccess { available ->
+                        if (available != null) {
+                            updateInfo = available
+                            updateStatus = "Version ${available.versionName} is available."
+                            updateDialogOpen = true
+                        }
+                    }
+            }
+
             // Daily category assignment comes from the inspection calendar.
             // Return-day values remain exclusively in Supabase expiry_return_rules.
             val inspectionSchedule = remember { loadInspectionSchedule(this@MainActivity) }
@@ -543,7 +555,7 @@ class MainActivity : ComponentActivity() {
                 if (updateDialogOpen) {
                     val availableUpdate = updateInfo
                     AlertDialog(
-                        onDismissRequest = { if (!updateDownloading) updateDialogOpen = false },
+                        onDismissRequest = { if (!updateDownloading && availableUpdate?.mandatory != true) updateDialogOpen = false },
                         title = { Text(if (availableUpdate == null) "App updates" else "Update available • ${availableUpdate.versionName}") },
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -601,7 +613,7 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         dismissButton = {
-                            if (availableUpdate != null && downloadedUpdateApk == null) {
+                            if (availableUpdate != null && downloadedUpdateApk == null && !availableUpdate.mandatory) {
                                 TextButton(onClick = { updateDialogOpen = false }) { Text("LATER") }
                             }
                         }
