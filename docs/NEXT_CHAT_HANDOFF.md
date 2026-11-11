@@ -117,3 +117,13 @@ Continue on `feature/in-app-updates` in `rajuuddanti/Expiry`; do not switch bran
 - Latest screenshot showed APK filename correct but JSON filename was `Update .JSON`; it must be renamed exactly to lowercase `update.json`. Old APK assets marked "will be deleted" are okay if they are unwanted duplicates.
 - Release publication is not yet confirmed. After user confirms publish, test detection/download/checksum/installer/in-place update and retained app data. Do not claim success before device evidence.
 - Android still requires user confirmation in its package installer; mandatory only prevents dismissing the app's update dialog, not Android's confirmation.
+
+
+## Latest follow-up — 0.2.3 test release preparation
+
+The user asked to revert the temporary Settings icon change and publish another version for testing. On `feature/in-app-updates`:
+- Restored Settings icon glyph `🔧` → original `⚙` in MainActivity. Commit `be4da1cc65169f9ede61161775a440c426d3da6f`.
+- Bumped version to `0.2.3` / versionCode `4`. Commit `5907bbee7ad98f91a670e05e46afee9c00df203c`.
+- No build or device test was run by the assistant.
+Next: user runs `git pull origin feature/in-app-updates`, builds locally, calculates APK SHA-256 with PowerShell `Get-FileHash`, and prepares release `v0.2.3` with APK named `MahaMart-Expiry-Manager-v0.2.3.apk` plus exact lowercase `update.json`. JSON values: versionCode 4, versionName 0.2.3, matching apkAssetName, mandatory false, releaseNotes "Restored the original Settings gear icon.", and actual built APK SHA-256.
+The user screenshot confirmed v0.2.2 is published/latest with correct APK and `update.json`. Do not claim 0.2.1 → 0.2.2 in-app update succeeded; user has not reported the result. If they want to test 0.2.2 separately, do that before publishing 0.2.3 because 0.2.3 becomes Latest.
