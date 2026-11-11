@@ -262,3 +262,24 @@ Prepare a published GitHub Release:
 4. Verify update detection, release notes, download progress, SHA-256 validation, Android installer handoff, and in-place update to 0.2.2.
 5. Confirm existing local expiry records/settings remain after update.
 6. Record actual device/build results; source commits and matching signatures alone do not prove end-to-end update success.
+
+
+## Follow-up — second updater test release preparation (0.2.3)
+
+The user wants to restore the original Settings gear icon after the 0.2.2 test and publish another update to test the update path again.
+
+Committed on `feature/in-app-updates`:
+- Restored Settings icon from `🔧` to the original `⚙` in `MainActivity.kt`. Commit: `be4da1cc65169f9ede61161775a440c426d3da6f`.
+- Bumped `app/build.gradle.kts` to `versionCode = 4`, `versionName = "0.2.3"`. Commit: `5907bbee7ad98f91a670e05e46afee9c00df203c`.
+- No other app behavior, business rules, Supabase configuration, Room schema/version, or updater logic was intentionally changed in this follow-up.
+
+### Next release instructions
+1. User pulls latest `feature/in-app-updates` and builds the debug APK locally on the same Windows PC/signing identity.
+2. Keep the 0.2.2 app installed on the phone for the next in-app update test. Do not uninstall.
+3. Rename locally built APK to `MahaMart-Expiry-Manager-v0.2.3.apk`.
+4. Create GitHub Release tag `v0.2.3`, target `feature/in-app-updates`, title `MahaMart Expiry Manager 0.2.3`.
+5. Upload APK plus `update.json` with versionCode 4, versionName 0.2.3, apkAssetName `MahaMart-Expiry-Manager-v0.2.3.apk`, mandatory false, releaseNotes `Restored the original Settings gear icon.`, and SHA-256 calculated from the exact local APK file.
+6. Publish the release. Confirm the JSON asset filename is exactly lowercase `update.json`.
+7. On the phone with 0.2.2 installed, use Settings → CHECK FOR APP UPDATES and verify update/download/checksum/installer/in-place upgrade and retained local data.
+
+The 0.2.2 GitHub Release was confirmed published and marked Latest in the user's screenshot. Its assets were `MahaMart-Expiry-Manager-v0.2.2.apk` and `update.json`. The end-to-end 0.2.1 → 0.2.2 update test result has not yet been reported. Publishing 0.2.3 will make it the latest release, so perform/record the 0.2.2 test first if the user still wants to test that version separately.
