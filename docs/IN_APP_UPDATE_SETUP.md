@@ -57,3 +57,31 @@ No Supabase configuration/schema, Room schema/version, product-master sync coold
 - Confirm actual installed app signing certificate and choose a stable release signing method.
 - Publish a test release with APK + update.json.
 - Test check, download, checksum validation, installer handoff, and successful in-place update on a test device before store rollout.
+
+
+## First test release — 0.2.2 (2026-11-11)
+
+The first in-app update test uses:
+- Installed baseline: `0.2.1` / versionCode `2`.
+- Test release: `0.2.2` / versionCode `3`.
+- Release tag: `v0.2.2`; target branch: `feature/in-app-updates`.
+- APK asset filename: `MahaMart-Expiry-Manager-v0.2.2.apk`.
+- Metadata asset filename: exactly `update.json` (lowercase, no spaces).
+- APK SHA-256: `1a2dfbe9df87ea475a3fd8c393c61e9296e08f54ef6efc5c759fd25e4e681d89`.
+
+Use this metadata for the test release:
+
+```json
+{
+  "versionCode": 3,
+  "versionName": "0.2.2",
+  "apkAssetName": "MahaMart-Expiry-Manager-v0.2.2.apk",
+  "mandatory": false,
+  "releaseNotes": "Settings icon update and in-app update test.",
+  "sha256": "1a2dfbe9df87ea475a3fd8c393c61e9296e08f54ef6efc5c759fd25e4e681d89"
+}
+```
+
+The user inspected the baseline APK in Android Studio and confirmed package `com.mahalaxmi.expiry`, versionName `0.2.1`, versionCode `2`. The baseline APK and locally built 0.2.2 APK have matching signing-certificate fingerprints. This confirms signing identity between those APK files, but does not verify the updater end-to-end.
+
+At the latest recorded point, the GitHub Release was still being prepared; publication was not confirmed. Do not claim an update is available until the release is published and both asset names are exact. Keep the 0.2.1 app installed for the in-app test; do not manually install 0.2.2 first.
