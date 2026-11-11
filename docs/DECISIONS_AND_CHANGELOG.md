@@ -214,3 +214,13 @@ User prefers direct, informal “bro” communication and concrete step-by-step 
 - Signing certificate SHA-256: `855ba8e12336f7dcd6bd2df1ba991acc129bd82592f5b19895c5b7b0a4867df5`; Android Studio confirmed original baseline APK is 0.2.1/code 2 and has the same signing fingerprint.
 - Release test assets must be `MahaMart-Expiry-Manager-v0.2.2.apk` and `update.json`; the latter must be lowercase with no spaces. Release tag `v0.2.2`, target `feature/in-app-updates`.
 - Release publication and end-to-end update test remain pending at the time of this note. Do not infer success from source commits, APK inspection, or signing match.
+
+
+## 2026-11-11 — prepare 0.2.3 by reverting temporary Settings icon
+
+- User requested reverting the temporary Settings icon change and publishing another version for in-app update testing.
+- Restored original Settings gear glyph `⚙` (temporary test glyph was `🔧`). Commit: `be4da1cc65169f9ede61161775a440c426d3da6f`.
+- Bumped version from `0.2.2` / code 3 to `0.2.3` / code 4. Commit: `5907bbee7ad98f91a670e05e46afee9c00df203c`.
+- No updater, Supabase, Room schema, or expiry business logic changes were intended.
+- Next release should use tag `v0.2.3`, APK `MahaMart-Expiry-Manager-v0.2.3.apk`, and exact metadata asset `update.json`; SHA-256 must be calculated from the final local APK and copied into metadata.
+- The user confirmed v0.2.2 is published/latest. The 0.2.1 → 0.2.2 update test remains unreported; publishing v0.2.3 will supersede it as Latest.
