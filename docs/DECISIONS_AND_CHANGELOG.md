@@ -200,3 +200,17 @@ User prefers direct, informal “bro” communication and concrete step-by-step 
 - No updater code, metadata file, release publishing workflow, installer handling, or rollout controls have been implemented.
 - Android normally requires user confirmation to install an APK distributed outside Google Play. Do not promise silent installation on ordinary devices.
 - Keep updater functionality separate from product-master sync and expiry-record sync.
+
+
+## 2026-11-11 — in-app update channel and 0.2.2 test
+
+- New working branch: `feature/in-app-updates`, based on `feature/20-day-sync-lock`.
+- Update source is the latest published GitHub Release in `rajuuddanti/Expiry`; publishing the release is the admin rollout action.
+- Each release uses an APK asset plus a metadata asset named exactly `update.json`. Metadata carries versionCode, versionName, apkAssetName, mandatory, releaseNotes, and SHA-256.
+- The app checks after launch and exposes a manual Settings check; it downloads to cache, verifies SHA-256 when supplied, then invokes Android's package installer via FileProvider.
+- Android's package installer confirmation remains required. The app cannot silently install a normal sideloaded APK; mandatory flag only affects the app's own update dialog.
+- Minimal test change: Settings glyph `⚙` → `🔧`; version bump from `0.2.1` / code 2 to `0.2.2` / code 3.
+- Local 0.2.2 APK SHA-256: `1a2dfbe9df87ea475a3fd8c393c61e9296e08f54ef6efc5c759fd25e4e681d89`.
+- Signing certificate SHA-256: `855ba8e12336f7dcd6bd2df1ba991acc129bd82592f5b19895c5b7b0a4867df5`; Android Studio confirmed original baseline APK is 0.2.1/code 2 and has the same signing fingerprint.
+- Release test assets must be `MahaMart-Expiry-Manager-v0.2.2.apk` and `update.json`; the latter must be lowercase with no spaces. Release tag `v0.2.2`, target `feature/in-app-updates`.
+- Release publication and end-to-end update test remain pending at the time of this note. Do not infer success from source commits, APK inspection, or signing match.
