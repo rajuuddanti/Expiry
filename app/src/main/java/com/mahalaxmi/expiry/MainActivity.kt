@@ -42,6 +42,8 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -275,6 +277,28 @@ class MainActivity : ComponentActivity() {
             val syncRepository = remember { SupabaseSyncRepository(applicationContext, dao) }
             var syncMessage by remember { mutableStateOf("Not synced yet") }
             var lastMasterSync by remember { mutableStateOf(prefs.getString("master_last_sync", null)) }
+            var cooldownClock by remember { mutableStateOf(LocalDateTime.now(IndiaZone)) }
+            LaunchedEffect(lastMasterSync) {
+                while (true) {
+                    cooldownClock = LocalDateTime.now(IndiaZone)
+                    delay(60_000L)
+                }
+            }
+            val syncUnlockAt = remember(lastMasterSync) {
+                lastMasterSync?.let { value ->
+                    runCatching { LocalDateTime.parse(value).plusDays(20) }.getOrNull()
+                }
+            }
+            val syncCooldownActive = syncUnlockAt?.isAfter(cooldownClock) == true
+            val syncCooldownLabel = remember(syncUnlockAt, cooldownClock) {
+                val unlockAt = syncUnlockAt
+                if (unlockAt == null || !unlockAt.isAfter(cooldownClock)) "" else {
+                    val remaining = Duration.between(cooldownClock, unlockAt)
+                    val days = remaining.toDays()
+                    val hours = remaining.minusDays(days).toHours()
+                    "SYNC AVAILABLE IN " + days + "D " + hours + "H"
+                }
+            }
             val lastMasterSyncLabel = remember(lastMasterSync) {
                 val syncedAt = lastMasterSync?.let { runCatching { LocalDateTime.parse(it) }.getOrNull() }
                 if (syncedAt == null) {
@@ -1192,11 +1216,18 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     }
                                                 },
-                                                enabled = !isSyncing,
+                                                enabled = !isSyncing && !syncCooldownActive,
                                                 modifier = Modifier.fillMaxWidth(),
                                                 colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
                                             ) {
-                                                Text(if (isSyncing) "SYNCING…" else "SYNC NOW")
+                                                Text(when {
+                                                    isSyncing -> "SYNCING…"
+                                                    syncCooldownActive -> "SYNC LOCKED"
+                                                    else -> "SYNC NOW"
+                                                })
+                                            }
+                                            if (syncCooldownActive) {
+                                                Text(syncCooldownLabel, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
                                             }
                                         }
                                     }
