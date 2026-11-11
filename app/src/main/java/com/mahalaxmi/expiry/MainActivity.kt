@@ -344,6 +344,13 @@ class MainActivity : ComponentActivity() {
             var returnRules by remember { mutableStateOf(emptyList<SupabaseSyncRepository.ReturnRule>()) }
             var returnRulesLoading by remember { mutableStateOf(false) }
             var returnRulesError by remember { mutableStateOf("") }
+            var updateInfo by remember { mutableStateOf<AppUpdate?>(null) }
+            var updateDialogOpen by remember { mutableStateOf(false) }
+            var updateChecking by remember { mutableStateOf(false) }
+            var updateDownloading by remember { mutableStateOf(false) }
+            var updateProgress by remember { mutableIntStateOf(0) }
+            var updateStatus by remember { mutableStateOf("Check whether a newer app version is available.") }
+            var downloadedUpdateApk by remember { mutableStateOf<File?>(null) }
             LaunchedEffect(syncRepository) {
                 runCatching { syncRepository.fetchReturnRules() }
                     .onSuccess { returnRules = it }
@@ -533,6 +540,73 @@ class MainActivity : ComponentActivity() {
             }
 
             MaterialTheme {
+                if (updateDialogOpen) {
+                    val availableUpdate = updateInfo
+                    AlertDialog(
+                        onDismissRequest = { if (!updateDownloading) updateDialogOpen = false },
+                        title = { Text(if (availableUpdate == null) "App updates" else "Update available • ${availableUpdate.versionName}") },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(updateStatus)
+                                if (availableUpdate != null) {
+                                    if (availableUpdate.mandatory) {
+                                        Text("This update is marked as required by the administrator.", color = MahalaxmiRed, fontWeight = FontWeight.Bold)
+                                    }
+                                    if (availableUpdate.releaseNotes.isNotBlank()) Text(availableUpdate.releaseNotes)
+                                }
+                                if (updateDownloading) {
+                                    LinearProgressIndicator(
+                                        progress = { updateProgress / 100f },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        color = MahalaxmiRed
+                                    )
+                                    Text("$updateProgress% downloaded", fontSize = 12.sp)
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            if (availableUpdate != null && downloadedUpdateApk == null) {
+                                TextButton(
+                                    enabled = !updateDownloading,
+                                    onClick = {
+                                        scope.launch {
+                                            updateDownloading = true
+                                            updateStatus = "Downloading update…"
+                                            updateProgress = 0
+                                            try {
+                                                downloadedUpdateApk = AppUpdateManager.download(availableUpdate, applicationContext) {
+                                                    updateProgress = it
+                                                }
+                                                updateStatus = "Download complete. Ready to install."
+                                            } catch (error: Exception) {
+                                                updateStatus = error.message ?: "Could not download update."
+                                            } finally {
+                                                updateDownloading = false
+                                            }
+                                        }
+                                    }
+                                ) { Text("DOWNLOAD", color = MahalaxmiRed) }
+                            } else if (downloadedUpdateApk != null) {
+                                TextButton(onClick = {
+                                    if (AppUpdateManager.canInstallPackages(this@MainActivity)) {
+                                        runCatching { AppUpdateManager.install(this@MainActivity, downloadedUpdateApk!!) }
+                                            .onFailure { updateStatus = it.message ?: "Could not open installer." }
+                                    } else {
+                                        updateStatus = "Allow MahaMart Expiry Manager to install this update, then return here and tap INSTALL."
+                                        AppUpdateManager.openInstallPermissionSettings(this@MainActivity)
+                                    }
+                                }) { Text("INSTALL", color = MahalaxmiRed) }
+                            } else {
+                                TextButton(onClick = { updateDialogOpen = false }) { Text("CLOSE") }
+                            }
+                        },
+                        dismissButton = {
+                            if (availableUpdate != null && downloadedUpdateApk == null) {
+                                TextButton(onClick = { updateDialogOpen = false }) { Text("LATER") }
+                            }
+                        }
+                    )
+                }
                 if (showStorePinDialog) {
                     AlertDialog(
                         onDismissRequest = { showStorePinDialog = false; storePinInput = ""; storePinError = "" },
@@ -1230,6 +1304,33 @@ class MainActivity : ComponentActivity() {
                                                 Text(syncCooldownLabel, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
                                             }
                                         }
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            scope.launch {
+                                                updateChecking = true
+                                                updateStatus = "Checking GitHub for the latest release…"
+                                                updateInfo = null
+                                                downloadedUpdateApk = null
+                                                updateDialogOpen = true
+                                                try {
+                                                    updateInfo = AppUpdateManager.checkForUpdate()
+                                                    updateStatus = if (updateInfo == null) {
+                                                        "This app is already up to date."
+                                                    } else {
+                                                        "Version ${updateInfo!!.versionName} is available."
+                                                    }
+                                                } catch (error: Exception) {
+                                                    updateStatus = error.message ?: "Could not check for updates."
+                                                } finally {
+                                                    updateChecking = false
+                                                }
+                                            }
+                                        },
+                                        enabled = !updateChecking,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(if (updateChecking) "CHECKING FOR UPDATES…" else "CHECK FOR APP UPDATES")
                                     }
                                     OutlinedTextField(
                                         value = store,
