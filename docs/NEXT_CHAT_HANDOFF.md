@@ -2,7 +2,7 @@
 
 Continue the Mahalaxmi Expiry Manager project in `rajuuddanti/Expiry`.
 
-**Start on branch:** `feature/no-expiry-fix`  
+**Active branch for current updater work:** `feature/in-app-updates`  
 **Last app-source commit:** `b7c22c15d9e8ff758c181f95d3851de5ac92f372` — Prevent NO EXPIRY when category has active expiry entries.
 
 Read:
@@ -90,3 +90,13 @@ Continue on `feature/in-app-updates`, based on `feature/20-day-sync-lock`. Read 
 Source implementation adds automatic launch checking, a Settings manual check, GitHub Releases as the admin-controlled update channel, `update.json` metadata, APK download progress, optional SHA-256 validation, and Android installer handoff. No Room/Supabase/business logic was changed. Current version remains 2 / 0.2.1.
 
 **Do not claim build/device success yet.** Verify CI. Before distributing APK updates, confirm the signing certificate of the currently installed app and configure a stable signing identity. The GitHub Actions debug keystore is runner-specific and may not match the existing installed app. Android package installer confirmation remains required.
+
+
+## Current updater test state — 2026-11-11
+
+- Baseline 0.2.1 was installed by the user from Android Studio.
+- Test source change: Settings navigation glyph `⚙` → `🔧` only.
+- New build version: `0.2.2` (`versionCode 3`).
+- Pull `feature/in-app-updates`, build locally on the same PC/signing identity, then publish APK + `update.json` as GitHub Release `v0.2.2`.
+- The app will not detect a source-code push by itself; it checks published GitHub Releases.
+- No build or end-to-end update has been verified yet.
