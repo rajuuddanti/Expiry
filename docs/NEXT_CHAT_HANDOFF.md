@@ -81,3 +81,12 @@ Read `docs/IMPLEMENTATION_LOG_2026-11-11.md` for the latest task's purpose, impl
 
 ---
 
+
+
+## Current active task — in-app updater (2026-11-11)
+
+Continue on `feature/in-app-updates`, based on `feature/20-day-sync-lock`. Read `docs/IN_APP_UPDATE_SETUP.md` and the updater section in `docs/CURRENT_HANDOFF.md` first.
+
+Source implementation adds automatic launch checking, a Settings manual check, GitHub Releases as the admin-controlled update channel, `update.json` metadata, APK download progress, optional SHA-256 validation, and Android installer handoff. No Room/Supabase/business logic was changed. Current version remains 2 / 0.2.1.
+
+**Do not claim build/device success yet.** Verify CI. Before distributing APK updates, confirm the signing certificate of the currently installed app and configure a stable signing identity. The GitHub Actions debug keystore is runner-specific and may not match the existing installed app. Android package installer confirmation remains required.
