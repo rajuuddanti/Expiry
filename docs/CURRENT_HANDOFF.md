@@ -227,3 +227,38 @@ Source changes are committed, but no successful build, test release, download, i
 - Bumped `versionCode` to 3 and `versionName` to `0.2.2` so Android recognizes the APK as an upgrade.
 - Next: user pulls this branch, builds the APK locally on the same PC/signing identity, then publishes a GitHub Release containing the APK and matching `update.json` asset. Only then can the installed 0.2.1 app detect the release.
 - Build, release, download, install, and data-preservation test are still pending. Do not claim the updater has been validated.
+
+
+## 2026-11-11 — in-app update test release preparation (latest)
+
+Current branch: `feature/in-app-updates`. The updater implementation and 0.2.2 test version are committed on this branch.
+
+### Test build
+- Baseline installed app: `com.mahalaxmi.expiry`, versionName `0.2.1`, versionCode `2`.
+- Test update build: versionName `0.2.2`, versionCode `3`.
+- Only visible test UI change: Settings navigation glyph changed from `⚙` to `🔧`.
+- User built the APK locally on Windows and supplied it for inspection.
+- New APK SHA-256: `1a2dfbe9df87ea475a3fd8c393c61e9296e08f54ef6efc5c759fd25e4e681d89`.
+- New APK signing certificate SHA-256: `855ba8e12336f7dcd6bd2df1ba991acc129bd82592f5b19895c5b7b0a4867df5`.
+- Android Studio Analyze APK confirmed the original APK is `0.2.1` / code `2`. The original APK signing fingerprint reported by apksigner matches the new 0.2.2 APK fingerprint above. The pulled installed APK file hash differs from the original APK file hash; that alone is not a signing mismatch.
+- Signing identity match is confirmed between the original 0.2.1 APK file and the new local 0.2.2 APK. Do not claim the in-app update itself has succeeded yet.
+
+### GitHub Release test
+Prepare a published GitHub Release:
+- Tag: `v0.2.2`
+- Target: `feature/in-app-updates`
+- Title: `MahaMart Expiry Manager 0.2.2`
+- APK asset: `MahaMart-Expiry-Manager-v0.2.2.apk`
+- Metadata asset must be named exactly `update.json` (lowercase, no spaces).
+- Metadata values: versionCode `3`, versionName `0.2.2`, apkAssetName `MahaMart-Expiry-Manager-v0.2.2.apk`, mandatory `false`, releaseNotes `Settings icon update and in-app update test.`, sha256 `1a2dfbe9df87ea475a3fd8c393c61e9296e08f54ef6efc5c759fd25e4e681d89`.
+- Draft releases are not visible to the app; the release must be published.
+- The user was editing the GitHub release asset names in the browser. The latest screenshot showed the APK filename corrected and the JSON filename displayed as `Update .JSON`; it still needed to be renamed exactly to `update.json`. Two old APK assets were marked for deletion.
+- Release publication has not yet been confirmed. Do not assume it is published.
+
+### Next test steps
+1. Confirm the release is published and contains exactly the expected APK and `update.json` assets.
+2. Keep the installed 0.2.1 app on the test phone; do not uninstall or manually install 0.2.2.
+3. Open the app or use Settings → CHECK FOR APP UPDATES.
+4. Verify update detection, release notes, download progress, SHA-256 validation, Android installer handoff, and in-place update to 0.2.2.
+5. Confirm existing local expiry records/settings remain after update.
+6. Record actual device/build results; source commits and matching signatures alone do not prove end-to-end update success.
