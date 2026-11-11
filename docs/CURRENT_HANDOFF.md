@@ -1,14 +1,14 @@
 # Current Project Handoff — Mahalaxmi Expiry Manager
 
-Last updated: 2026-11-02 (Asia/Kolkata)
+Last updated: 2026-11-11 (Asia/Kolkata)
 
 ## Start here
 
 - Repository: `rajuuddanti/Expiry`
-- Active working branch: `feature/no-expiry-fix`
+- Active working branch for the latest sync-lock work: `feature/20-day-sync-lock` (based on `feature/main-screen-redesign`). Historic feature notes below may refer to earlier branches.
 - App: Mahalaxmi Expiry Manager
 - Android package: `com.mahalaxmi.expiry`
-- Last app-source commit before this documentation update: `b7c22c15d9e8ff758c181f95d3851de5ac92f372` — **Prevent NO EXPIRY when category has active expiry entries**.
+- Latest app/version commit currently recorded for this branch: `8066915edb5505f817595e3ecd8d14cec9b5d900` — versionCode 2 / versionName 0.2.1. See the dated implementation log for the 20-day manual sync lock.
 - Do not switch to `main` or merge branches unless the user explicitly asks. The working branch is ahead of `feature/new-expiry-upload-table`.
 
 Read these first:
@@ -68,7 +68,7 @@ Master/lookup rules:
 
 ## NO EXPIRY behavior — current source-level implementation
 
-Current implementation is on `feature/no-expiry-fix`.
+The NO EXPIRY behavior below is historical/source context from the earlier implementation line; verify current branch ancestry and source before making changes.
 
 ### Category selection
 - One category scheduled: it is selected automatically for NO EXPIRY and staff confirm.
@@ -171,7 +171,7 @@ Not verified in this handoff:
 
 ## Next work
 
-1. Start by checking the branch HEAD and current working tree/source; do not assume this handoff is newer than GitHub.
+1. Start by checking branch HEAD and the user's working tree. The user's local switch/pull is blocked by local edits to `app/build.gradle.kts`; preserve them with a path-specific stash before switching. See `docs/IMPLEMENTATION_LOG_2026-11-11.md`.
 2. If the user asks for app work, inspect relevant Kotlin files and current CI/build evidence before changing code.
 3. Keep the current working branch; do not merge or switch to main.
 4. If asked to sync Apps Script, first compare the live working editor copy supplied by the user with the repository copy, then update only the intended script and setup documentation.
@@ -181,3 +181,25 @@ Not verified in this handoff:
 ## Next Google Sheets setup action
 
 Paste the current `scripts/google-apps-script/Code.gs` from `feature/no-expiry-fix` into the standalone Apps Script editor. Add `EXPORT_ALERT_EMAIL` to Script Properties with the intended recipient email, save, then run `exportPreviousBusinessDayNow` once and verify the new `_export_log` columns and alert authorization. Do not share or change existing Supabase credentials.
+
+
+## 2026-11-11 — latest branch and 20-day manual sync lock
+
+The current active feature branch for this work is `feature/20-day-sync-lock`, based on `feature/main-screen-redesign`. The app remains `com.mahalaxmi.expiry`.
+
+The manual product-master SYNC NOW control now has a 20-day cooldown after a successful manual sync:
+- Reuses `SharedPreferences("expiry_manager")` key `master_last_sync`.
+- Unlock timestamp is successful sync time + 20 days.
+- Button becomes disabled and displays `SYNC LOCKED`; remaining days/hours are shown and refreshed every minute.
+- Only successful `syncRepository.sync()` completion writes the timestamp. Failure does not start/reset the cooldown.
+- Background WorkManager sync is unchanged.
+
+Scope explicitly preserved: no sync-history table, no Supabase schema/config changes, no Room schema/version changes, no PIN/override, and no unrelated UI or behavior changes.
+
+Version bump in `app/build.gradle.kts`: applicationId remains `com.mahalaxmi.expiry`; versionCode 2; versionName 0.2.1. Version commit: `8066915edb5505f817595e3ecd8d14cec9b5d900`.
+
+The branch workflow `.github/workflows/android-build.yml` includes `feature/20-day-sync-lock` and builds a debug APK artifact. Build success and same-signature in-place installation are not yet verified by this handoff.
+
+The user's local switch/pull was blocked by local edits to `app/build.gradle.kts`. Preserve those edits with a path-specific stash before switching; do not reset or force checkout. See `docs/IMPLEMENTATION_LOG_2026-11-11.md` for exact commands and full context.
+
+Next requested feature: design/implement an in-app update checker and APK downloader, likely using GitHub Releases plus version metadata and an admin-controlled rollout. This is a future task only; no updater code has been added. Android's normal package installer still requires user confirmation for sideloaded APK updates.
