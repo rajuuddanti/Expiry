@@ -5,7 +5,7 @@ Last updated: 2026-11-11 (Asia/Kolkata)
 ## Start here
 
 - Repository: `rajuuddanti/Expiry`
-- Active working branch for the latest sync-lock work: `feature/20-day-sync-lock` (based on `feature/main-screen-redesign`). Historic feature notes below may refer to earlier branches.
+- Active working branch: `feature/in-app-updates` (created from `feature/20-day-sync-lock`). Historic feature notes below may refer to earlier branches.
 - App: Mahalaxmi Expiry Manager
 - Android package: `com.mahalaxmi.expiry`
 - Latest app/version commit currently recorded for this branch: `8066915edb5505f817595e3ecd8d14cec9b5d900` — versionCode 2 / versionName 0.2.1. See the dated implementation log for the 20-day manual sync lock.
@@ -203,3 +203,18 @@ The branch workflow `.github/workflows/android-build.yml` includes `feature/20-d
 The user's local switch/pull was blocked by local edits to `app/build.gradle.kts`. Preserve those edits with a path-specific stash before switching; do not reset or force checkout. See `docs/IMPLEMENTATION_LOG_2026-11-11.md` for exact commands and full context.
 
 Next requested feature: design/implement an in-app update checker and APK downloader, likely using GitHub Releases plus version metadata and an admin-controlled rollout. This is a future task only; no updater code has been added. Android's normal package installer still requires user confirmation for sideloaded APK updates.
+
+
+## 2026-11-11 — in-app updater implementation
+
+The new branch `feature/in-app-updates` contains an initial in-app updater:
+- Checks GitHub's latest published release automatically shortly after app launch.
+- Adds a manual **CHECK FOR APP UPDATES** action in Settings.
+- Reads `update.json` and the APK asset from the same published GitHub Release; publishing the release is the admin rollout action.
+- Compares release `versionCode` with the installed app, displays version/release notes and mandatory flag, downloads APK with progress, optionally verifies SHA-256, and hands the APK to Android's package installer through FileProvider.
+- Adds `REQUEST_INSTALL_PACKAGES` permission and a cache FileProvider path for downloaded APKs.
+- Does not alter Supabase, Room, product master sync, expiry upload, or business rules.
+
+Release asset format and signing constraints are documented in `docs/IN_APP_UPDATE_SETUP.md`. Critical: the current GitHub Actions debug APK is signed with the runner's debug key and is not guaranteed to match the installed Windows debug build. Do not roll out updates until the installed signing certificate and stable release signing key are resolved. Android still requires user confirmation; the mandatory flag cannot silently install.
+
+Source changes are committed, but no successful build, test release, download, installer handoff, or device update is verified yet. Current app version remains versionCode 2 / versionName 0.2.1; the next release must use a higher versionCode.
