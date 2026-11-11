@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/new-expiry-upload-table
+      - feature/20-day-sync-lock
   workflow_dispatch:
 
 permissions:
