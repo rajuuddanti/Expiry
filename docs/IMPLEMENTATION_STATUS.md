@@ -1,12 +1,12 @@
 # Implementation Status — Mahalaxmi Expiry Manager
 
-Last updated: 2026-11-02 (Asia/Kolkata)
+Last updated: 2026-11-11 (Asia/Kolkata)
 
 ## Repository state
 
 - Repository: `rajuuddanti/Expiry`
-- Active branch: `feature/no-expiry-fix`
-- Latest app-source commit before this documentation update: `b7c22c15d9e8ff758c181f95d3851de5ac92f372`.
+- Current feature branch: `feature/20-day-sync-lock` (based on `feature/main-screen-redesign`).
+- Latest version bump commit: `8066915edb5505f817595e3ecd8d14cec9b5d900` (versionCode 2 / versionName 0.2.1).
 - Do not use stale `main` as the working branch. Verify HEAD before every change.
 
 ## Verified current state
@@ -95,3 +95,20 @@ These are time-stamped observations, not permanent row counts. Do not change pro
 - Inspect branch/source before patching; no merges or branch switches without permission.
 - A GitHub commit is not proof of a build or runtime test.
 - The live Apps Script project is separate from the repository copy; do not claim GitHub commits deploy it.
+
+
+## 2026-11-11 branch update — 20-day manual sync lock
+
+- Current feature branch: `feature/20-day-sync-lock` (based on `feature/main-screen-redesign`).
+- Application ID unchanged: `com.mahalaxmi.expiry`.
+- Branch version: versionCode 2, versionName 0.2.1.
+- Manual SYNC NOW cooldown is source-implemented in `MainActivity.kt`, using existing `expiry_manager/master_last_sync`; successful manual sync starts 20 days, failure does not. Button locks and displays remaining days/hours. Background WorkManager sync is unchanged.
+- No Room schema/version, Supabase schema/config, sync-history table, PIN/override, or unrelated behavior changes.
+- GitHub Actions workflow includes this branch and uploads a debug APK artifact.
+- Still unverified: latest CI build result, physical-device installation/update, same-signing-key compatibility, and real-device cooldown test.
+- User's local branch switch/pull is blocked by local changes to `app/build.gradle.kts`; preserve them with a path-specific stash before switching. Never reset or force checkout.
+- See `docs/IMPLEMENTATION_LOG_2026-11-11.md` for full task context, decisions, Git commands, and next steps.
+
+## Planned next feature (not implemented): in-app updater
+
+GitHub Releases + version metadata JSON, app-side update check, download progress, and Android installer handoff are the discussed direction. Admin-controlled rollout is a requirement to explore. Android normally prompts the user to confirm sideloaded APK installation. No updater code exists yet.
