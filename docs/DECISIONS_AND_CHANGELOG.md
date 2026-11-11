@@ -1,6 +1,6 @@
 # Decisions and Changelog
 
-Last updated: 2026-10-31 (Asia/Kolkata)
+Last updated: 2026-11-11 (Asia/Kolkata)
 
 This file separates user-confirmed decisions from requirements that still need implementation or verification. For the current full state, read `docs/CURRENT_HANDOFF.md`.
 
@@ -177,3 +177,26 @@ User prefers direct, informal “bro” communication and concrete step-by-step 
 - Script uses `session_start` for the 3 PM–to–3 PM business window. Rows created after 3 PM belong to the new session and will not be included in the export for the previous session.
 - The last manual output showed a folder named `30 Oct MASALA SPICES`. Confirm the folder name contains both categories scheduled for that date; if only one category is returned from the schedule JSON, investigate before calling the two-category naming requirement verified.
 - Security: keep the Supabase service-role key only in Apps Script Script Properties. Never commit it or add it to Android.
+
+
+## 2026-11-11 — 20-day manual product-master sync cooldown
+
+- User request: after a successful manual product-master sync, make the manual SYNC NOW button inaccessible for 20 days; show remaining lock time and automatically unlock after the period.
+- Implementation reuses existing `SharedPreferences("expiry_manager")` key `master_last_sync`; no sync-history table is added.
+- Timestamp is written only after `syncRepository.sync()` succeeds. A failed sync does not start or reset the cooldown.
+- Button is disabled and labeled `SYNC LOCKED` during cooldown; remaining days/hours are displayed and refreshed once per minute.
+- Existing background WorkManager sync behavior is unchanged.
+- Explicitly out of scope: Supabase schema/config, Room schema/version, PIN/override, sync-history feature, unrelated UI or code changes.
+- Branch: `feature/20-day-sync-lock`, based on `feature/main-screen-redesign`.
+- Version: `versionCode = 2`, `versionName = "0.2.1"`; applicationId remains `com.mahalaxmi.expiry`.
+- Version commit: `8066915edb5505f817595e3ecd8d14cec9b5d900`.
+- Workflow includes the feature branch. CI success and device verification remain unconfirmed.
+
+## 2026-11-11 — future in-app update feature (planned, not implemented)
+
+- User wants an in-app update check/download/install flow after preserving the current app work in handoff documents.
+- Proposed approach discussed: GitHub Releases for APK assets plus a version metadata JSON; app checks installed version against latest, shows release notes, downloads with progress, then hands off to Android package installer.
+- Admin-controlled rollout/availability to store devices is a desired consideration.
+- No updater code, metadata file, release publishing workflow, installer handling, or rollout controls have been implemented.
+- Android normally requires user confirmation to install an APK distributed outside Google Play. Do not promise silent installation on ordinary devices.
+- Keep updater functionality separate from product-master sync and expiry-record sync.
