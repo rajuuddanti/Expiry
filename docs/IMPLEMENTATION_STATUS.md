@@ -5,8 +5,8 @@ Last updated: 2026-11-11 (Asia/Kolkata)
 ## Repository state
 
 - Repository: `rajuuddanti/Expiry`
-- Current feature branch: `feature/20-day-sync-lock` (based on `feature/main-screen-redesign`).
-- Latest version bump commit: `8066915edb5505f817595e3ecd8d14cec9b5d900` (versionCode 2 / versionName 0.2.1).
+- Current feature branch: `feature/in-app-updates` (based on `feature/20-day-sync-lock`).
+- Current test version: versionCode 3 / versionName 0.2.2. The previously installed baseline is 0.2.1.
 - Do not use stale `main` as the working branch. Verify HEAD before every change.
 
 ## Verified current state
@@ -128,3 +128,12 @@ Implemented in source:
 No Supabase, Room, expiry, product-master sync, or business-rule changes.
 
 Not yet verified: Gradle build/CI success, actual release asset download, installer handoff, same-signature in-place update, and device behavior. The CI debug APK signing key is runner-generated and is not guaranteed to match the user's installed app. Resolve stable signing before rollout. See `docs/IN_APP_UPDATE_SETUP.md` for the release manifest and admin procedure.
+
+
+## In-app update test build — 2026-11-11
+
+- Settings navigation glyph changed from `⚙` to `🔧`; no other app UI/business logic changed for this test.
+- Version bumped to `3` / `0.2.2`.
+- User must pull `feature/in-app-updates` and build locally in Android Studio using the same PC/debug signing key as the installed 0.2.1 app.
+- Publish the resulting APK plus `update.json` as assets on GitHub Release `v0.2.2`. A source push alone does not publish an update.
+- Not yet verified: Gradle build, APK signing match, release asset download, installer flow, or data preservation.
