@@ -161,3 +161,13 @@ Pending:
 - Latest screenshot showed APK name corrected, but JSON name was still `Update .JSON`; correct it to lowercase `update.json`.
 - Keep 0.2.1 installed; test update detection, download, SHA-256 check, installer handoff, in-place install, and data retention.
 - No successful Gradle/CI build or end-to-end physical-device update is documented yet.
+
+
+## 2026-11-11 follow-up — prepare version 0.2.3
+
+- Restored the Settings navigation icon from the temporary test wrench `🔧` to the original gear `⚙`. Commit: `be4da1cc65169f9ede61161775a440c426d3da6f`.
+- Bumped app version to `0.2.3` / versionCode `4`. Commit: `5907bbee7ad98f91a670e05e46afee9c00df203c`.
+- This is a minimal visual revert plus version increment; updater logic and business behavior are unchanged.
+- Next: pull branch, build APK locally with same signing identity, calculate its SHA-256, then publish GitHub Release `v0.2.3` with APK and lowercase `update.json`.
+- Required metadata: versionCode 4, versionName 0.2.3, apkAssetName `MahaMart-Expiry-Manager-v0.2.3.apk`, mandatory false, releaseNotes `Restored the original Settings gear icon.`, and the actual SHA-256 of the built APK.
+- User screenshot confirmed `v0.2.2` release is published/latest with APK and lowercase `update.json`. The 0.2.1 → 0.2.2 in-app update test has not yet been confirmed. Publishing 0.2.3 will replace 0.2.2 as Latest.
