@@ -774,7 +774,7 @@ class MainActivity : ComponentActivity() {
                             NavigationBarItem(
                                 selected = screen == AppScreen.Settings,
                                 onClick = { screen = AppScreen.Settings },
-                                icon = { Text("⚙", fontSize = 20.sp) },
+                                icon = { Text("🔧", fontSize = 20.sp) },
                                 label = { Text("Settings") }
                             )
                         }
