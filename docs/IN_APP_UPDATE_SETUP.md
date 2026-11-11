@@ -85,3 +85,18 @@ Use this metadata for the test release:
 The user inspected the baseline APK in Android Studio and confirmed package `com.mahalaxmi.expiry`, versionName `0.2.1`, versionCode `2`. The baseline APK and locally built 0.2.2 APK have matching signing-certificate fingerprints. This confirms signing identity between those APK files, but does not verify the updater end-to-end.
 
 At the latest recorded point, the GitHub Release was still being prepared; publication was not confirmed. Do not claim an update is available until the release is published and both asset names are exact. Keep the 0.2.1 app installed for the in-app test; do not manually install 0.2.2 first.
+
+
+## Second test release — 0.2.3 (prepared 2026-11-11)
+
+A second test release was prepared after restoring the original Settings gear icon:
+- VersionName: `0.2.3`
+- VersionCode: `4`
+- Settings icon restored to `⚙`.
+- APK asset filename: `MahaMart-Expiry-Manager-v0.2.3.apk`
+- Metadata asset filename: exactly `update.json`
+- Release tag: `v0.2.3`; target branch: `feature/in-app-updates`
+- Release notes: `Restored the original Settings gear icon.`
+- Mandatory: `false`
+
+Build the APK locally on the same PC/signing identity, then calculate the exact APK checksum and place it in the `sha256` field. Do not reuse the 0.2.2 checksum. Keep 0.2.2 installed while testing the 0.2.2 → 0.2.3 update. Publishing v0.2.3 makes it the latest release; complete or consciously skip the earlier 0.2.1 → 0.2.2 test before publishing if that first hop still matters.
