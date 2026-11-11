@@ -137,3 +137,27 @@ Not yet verified: Gradle build/CI success, actual release asset download, instal
 - User must pull `feature/in-app-updates` and build locally in Android Studio using the same PC/debug signing key as the installed 0.2.1 app.
 - Publish the resulting APK plus `update.json` as assets on GitHub Release `v0.2.2`. A source push alone does not publish an update.
 - Not yet verified: Gradle build, APK signing match, release asset download, installer flow, or data preservation.
+
+
+## Latest status — 2026-11-11: in-app update test
+
+Branch: `feature/in-app-updates`.
+
+Implemented and committed:
+- GitHub latest published Release update check on app launch and manual Settings check.
+- `update.json` metadata handling, versionCode comparison, release notes/mandatory display, APK download progress, optional SHA-256 validation, and Android installer handoff.
+- Test version bumped to `versionCode 3` / `versionName 0.2.2`; baseline is `2` / `0.2.1`.
+- Settings icon glyph changed from `⚙` to `🔧` as the minimal visible test change.
+- Updater setup/release instructions are in `docs/IN_APP_UPDATE_SETUP.md`.
+
+Test APK evidence:
+- Local 0.2.2 APK SHA-256: `1a2dfbe9df87ea475a3fd8c393c61e9296e08f54ef6efc5c759fd25e4e681d89`.
+- Local 0.2.2 signing certificate SHA-256: `855ba8e12336f7dcd6bd2df1ba991acc129bd82592f5b19895c5b7b0a4867df5`.
+- Android Studio Analyze APK verified the original baseline APK as `com.mahalaxmi.expiry`, version `0.2.1`, code `2`; its signing fingerprint matches the new 0.2.2 APK.
+- This confirms the two APK files can share an update signing identity; it does not prove installation/update flow works.
+
+Pending:
+- Confirm GitHub Release `v0.2.2` is published with APK asset `MahaMart-Expiry-Manager-v0.2.2.apk` and metadata asset named exactly `update.json`.
+- Latest screenshot showed APK name corrected, but JSON name was still `Update .JSON`; correct it to lowercase `update.json`.
+- Keep 0.2.1 installed; test update detection, download, SHA-256 check, installer handoff, in-place install, and data retention.
+- No successful Gradle/CI build or end-to-end physical-device update is documented yet.
