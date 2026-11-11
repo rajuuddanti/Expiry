@@ -110,3 +110,43 @@ Not confirmed by this documentation commit:
 - Keep changes narrowly scoped to the requested feature.
 - Separate source inspection, commit, CI build, APK install, and physical-device verification; never claim one proves another.
 - Preserve all previous business requirements and historic implementation decisions in the existing docs. This log supplements rather than replaces them.
+
+
+## Follow-up — in-app update implementation and test preparation (2026-11-11)
+
+The user asked to implement in-app updates in a new branch. Work continued on `feature/in-app-updates`, based on `feature/20-day-sync-lock`.
+
+### Implementation
+- Added `AppUpdateManager.kt` to query the latest published GitHub Release for `rajuuddanti/Expiry`.
+- Release assets are expected to include `update.json` and the named APK asset.
+- Metadata includes versionCode, versionName, mandatory, releaseNotes, apkAssetName, and optional SHA-256.
+- App checks shortly after launch and exposes **CHECK FOR APP UPDATES** in Settings.
+- APK downloads show progress, optional SHA-256 is checked, and the APK is passed to Android's package installer through FileProvider.
+- Manifest adds `REQUEST_INSTALL_PACKAGES`; FileProvider permits the app's update cache directory.
+- CI workflow branch trigger includes `feature/in-app-updates`.
+- Updated setup and handoff documentation.
+- No Supabase config, Room schema/version, expiry workflow, or business rules were intentionally changed.
+
+### Minimal update test build
+- Baseline APK: package `com.mahalaxmi.expiry`, versionName `0.2.1`, versionCode `2` (confirmed in Android Studio Analyze APK).
+- Test APK: versionName `0.2.2`, versionCode `3`.
+- Only visible test UI change: Settings glyph `⚙` changed to `🔧`.
+- Local 0.2.2 APK SHA-256: `1a2dfbe9df87ea475a3fd8c393c61e9296e08f54ef6efc5c759fd25e4e681d89`.
+- Signing certificate SHA-256 for 0.2.2: `855ba8e12336f7dcd6bd2df1ba991acc129bd82592f5b19895c5b7b0a4867df5`.
+- The original 0.2.1 APK's signing fingerprint was checked with apksigner and matches the 0.2.2 APK. This is a signing-identity check, not an end-to-end update test.
+- The installed app's pulled base.apk file hash differs from the separately saved original 0.2.1 APK file hash; different file hashes do not themselves indicate different signing keys. Android Studio confirmed the saved original APK is version 0.2.1/code 2.
+
+### GitHub Release procedure and current state
+- Intended tag: `v0.2.2`; target: `feature/in-app-updates`; title: `MahaMart Expiry Manager 0.2.2`.
+- Required assets: `MahaMart-Expiry-Manager-v0.2.2.apk` and exactly `update.json`.
+- The JSON's apkAssetName must exactly match the APK asset and sha256 must be `1a2dfbe9df87ea475a3fd8c393c61e9296e08f54ef6efc5c759fd25e4e681d89`.
+- At the latest screenshot, APK asset name had been corrected. JSON filename appeared as `Update .JSON` and still needed to be renamed to lowercase `update.json`; two older APK assets were marked for deletion.
+- User has not yet confirmed the release was published. A draft is not visible to the app.
+
+### Remaining test checklist
+1. Confirm published release and exact asset names.
+2. Leave 0.2.1 installed; do not uninstall or manually install 0.2.2.
+3. Open app or use Settings → CHECK FOR APP UPDATES.
+4. Verify release detection, notes, download progress, SHA-256 verification, installer handoff, and Android install confirmation.
+5. Confirm version becomes 0.2.2 and existing local records/settings remain.
+6. Record the actual result. No build/CI/device end-to-end verification is claimed in this log.
