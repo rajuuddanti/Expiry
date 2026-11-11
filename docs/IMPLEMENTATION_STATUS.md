@@ -112,3 +112,19 @@ These are time-stamped observations, not permanent row counts. Do not change pro
 ## Planned next feature (not implemented): in-app updater
 
 GitHub Releases + version metadata JSON, app-side update check, download progress, and Android installer handoff are the discussed direction. Admin-controlled rollout is a requirement to explore. Android normally prompts the user to confirm sideloaded APK installation. No updater code exists yet.
+
+
+## 2026-11-11 — initial in-app updater source
+
+Branch: `feature/in-app-updates`, based on `feature/20-day-sync-lock`.
+
+Implemented in source:
+- Automatic latest-release check shortly after launch.
+- Manual check action in Settings.
+- Admin-controlled rollout by publishing a GitHub Release with `update.json` and APK assets.
+- Version comparison, release notes, mandatory-update indicator, APK download progress, optional SHA-256 verification, FileProvider installer handoff, and unknown-source permission settings.
+- CI push trigger includes the new feature branch.
+
+No Supabase, Room, expiry, product-master sync, or business-rule changes.
+
+Not yet verified: Gradle build/CI success, actual release asset download, installer handoff, same-signature in-place update, and device behavior. The CI debug APK signing key is runner-generated and is not guaranteed to match the user's installed app. Resolve stable signing before rollout. See `docs/IN_APP_UPDATE_SETUP.md` for the release manifest and admin procedure.
