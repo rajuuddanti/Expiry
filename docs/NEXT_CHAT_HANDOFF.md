@@ -100,3 +100,20 @@ Source implementation adds automatic launch checking, a Settings manual check, G
 - Pull `feature/in-app-updates`, build locally on the same PC/signing identity, then publish APK + `update.json` as GitHub Release `v0.2.2`.
 - The app will not detect a source-code push by itself; it checks published GitHub Releases.
 - No build or end-to-end update has been verified yet.
+
+
+## 2026-11-11 — latest in-app updater test status
+
+Continue on `feature/in-app-updates` in `rajuuddanti/Expiry`; do not switch branches or merge unless asked.
+
+- Updater implementation is committed: automatic launch check, Settings manual check, GitHub latest published Release lookup, `update.json` parsing, version comparison, APK download progress, optional SHA-256 verification, and FileProvider installer handoff.
+- Test app version is `0.2.2` / versionCode `3`; baseline is `0.2.1` / versionCode `2`.
+- Only visible test change in 0.2.2 is Settings glyph `⚙` → `🔧`.
+- User's local 0.2.2 APK SHA-256: `1a2dfbe9df87ea475a3fd8c393c61e9296e08f54ef6efc5c759fd25e4e681d89`.
+- Signing certificate SHA-256 for the local 0.2.2 APK: `855ba8e12336f7dcd6bd2df1ba991acc129bd82592f5b19895c5b7b0a4867df5`.
+- Android Studio Analyze APK confirmed `original-0.2.1.apk` is package `com.mahalaxmi.expiry`, versionName `0.2.1`, versionCode `2`. Its signing fingerprint matches the local 0.2.2 APK.
+- Do not uninstall the existing 0.2.1 app. The user is preparing GitHub Release `v0.2.2` targeted at `feature/in-app-updates`, with assets `MahaMart-Expiry-Manager-v0.2.2.apk` and exactly `update.json`.
+- The metadata checksum must be `1a2dfbe9df87ea475a3fd8c393c61e9296e08f54ef6efc5c759fd25e4e681d89`; versionCode 3, versionName 0.2.2, mandatory false, releaseNotes "Settings icon update and in-app update test.".
+- Latest screenshot showed APK filename correct but JSON filename was `Update .JSON`; it must be renamed exactly to lowercase `update.json`. Old APK assets marked "will be deleted" are okay if they are unwanted duplicates.
+- Release publication is not yet confirmed. After user confirms publish, test detection/download/checksum/installer/in-place update and retained app data. Do not claim success before device evidence.
+- Android still requires user confirmation in its package installer; mandatory only prevents dismissing the app's update dialog, not Android's confirmation.
