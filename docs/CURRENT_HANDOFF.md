@@ -218,3 +218,12 @@ The new branch `feature/in-app-updates` contains an initial in-app updater:
 Release asset format and signing constraints are documented in `docs/IN_APP_UPDATE_SETUP.md`. Critical: the current GitHub Actions debug APK is signed with the runner's debug key and is not guaranteed to match the installed Windows debug build. Do not roll out updates until the installed signing certificate and stable release signing key are resolved. Android still requires user confirmation; the mandatory flag cannot silently install.
 
 Source changes are committed, but no successful build, test release, download, installer handoff, or device update is verified yet. Current app version remains versionCode 2 / versionName 0.2.1; the next release must use a higher versionCode.
+
+
+## 2026-11-11 — updater test build prepared
+
+- User installed version 0.2.1 locally from Android Studio before this change.
+- Changed only the Settings navigation glyph from `⚙` to `🔧` as the visible test change.
+- Bumped `versionCode` to 3 and `versionName` to `0.2.2` so Android recognizes the APK as an upgrade.
+- Next: user pulls this branch, builds the APK locally on the same PC/signing identity, then publishes a GitHub Release containing the APK and matching `update.json` asset. Only then can the installed 0.2.1 app detect the release.
+- Build, release, download, install, and data-preservation test are still pending. Do not claim the updater has been validated.
