@@ -1,7 +1,3 @@
-# Next Chat Handoff — Mahalaxmi Expiry Manager
-
-Last updated: 2026-11-02 (Asia/Kolkata)
-
 ## Copy this into a new chat
 
 Continue the Mahalaxmi Expiry Manager project in `rajuuddanti/Expiry`.
@@ -65,3 +61,23 @@ Wait for the user's next requested task. If they ask for Android changes, inspec
 ## Google Sheets reliability follow-up — 2026-11-02
 
 Latest source changes on `feature/no-expiry-fix` add a 30-second script lock, per-category row-count checks, overall Supabase-to-export reconciliation, NO EXPIRY CSV creation verification, expanded `_export_log` metrics, and optional email alerts via `EXPORT_ALERT_EMAIL`. These changes are only in GitHub until the updated `Code.gs` is pasted into the standalone Apps Script editor, saved, and authorized. After that, run `exportPreviousBusinessDayNow` once and inspect `_export_log`.
+# Next Chat Handoff — Mahalaxmi Expiry Manager
+
+Last updated: 2026-11-11 (Asia/Kolkata)
+
+## Current handoff pointer — read this first
+
+Continue in repository `rajuuddanti/Expiry`. Current feature branch is `feature/20-day-sync-lock`, based on `feature/main-screen-redesign`. Application ID: `com.mahalaxmi.expiry`. Branch version: versionCode 2 / versionName 0.2.1. Version bump commit: `8066915edb5505f817595e3ecd8d14cec9b5d900`.
+
+Read `docs/IMPLEMENTATION_LOG_2026-11-11.md` for the latest task's purpose, implementation, explicit scope limits, Git situation, verification boundaries, and planned next feature. The existing project documents below retain the older business and architecture history.
+
+**Immediate local Git issue:** the user's `git switch` and `git pull` were blocked because local changes to `app/build.gradle.kts` would be overwritten. Do not reset or force checkout. First stash only that path, switch to the feature branch, pull, and verify the version. Do not automatically apply the stash because it may restore older version settings.
+
+**Latest implementation:** manual SYNC NOW is locked for 20 days after successful manual product-master sync, using existing `expiry_manager/master_last_sync`. Failed sync does not start/reset the lock. The remaining days/hours are displayed. Background WorkManager sync is unchanged. No sync-history table, Supabase schema/config changes, Room schema/version changes, PIN/override, or unrelated behavior changes.
+
+**Verification:** source and version values were inspected on GitHub. Do not claim latest CI build success, APK install, same-signing-key compatibility, or device verification until independently checked.
+
+**Next requested feature (not implemented):** in-app update check/download/install flow, likely GitHub Releases + version metadata, with admin-controlled rollout considered. Android normally requires user confirmation for sideloaded APK installation. Keep updater separate from product-master sync and expiry data sync.
+
+---
+
