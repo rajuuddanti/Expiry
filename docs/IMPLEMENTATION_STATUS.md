@@ -247,3 +247,28 @@ Not yet verified: Gradle build, CI result, APK signing compatibility, GitHub v0.
 - Added `docs/APK_HASH_AND_RELEASE_CHECKLIST.md` on `feature/in-app-updates`.
 - Documents the PowerShell `Get-FileHash ... -Algorithm SHA256` command, exact-file requirement, double-extension download naming pitfall, manifest alignment, and post-upload checksum verification.
 - Documentation only; no app source, APK asset, signing key, release asset, Supabase configuration, or database was changed by this documentation commit.
+
+
+## 2026-11-14 — daily egress protection request (planning only)
+
+The user set a target to keep Supabase egress below **100 MB per day** and asked whether it can be restricted.
+
+### Current decision
+- No code, Supabase configuration, database policy, edge function, or project setting was changed.
+- User explicitly said not to change anything at this stage.
+- Treat 100 MB/day as a desired operational target, not an enforced Supabase hard cap.
+- Supabase usage/spend controls should not be described as a configurable per-day hard egress limit unless verified against current plan capabilities.
+
+### Proposed app-side protection (not implemented)
+- Track estimated daily network transfer per device, with a clear reset boundary and persisted counters.
+- Keep local product MASTER import available as the offline fallback.
+- Give pending expiry-entry uploads priority over non-essential downloads.
+- Throttle/block MASTER refresh before the daily target is reached, using conservative thresholds (for example warning at 70 MB, stop optional downloads around 85–95 MB).
+- Do not block expiry uploads solely because the estimated egress budget is reached.
+- Clearly disclose that per-device counters do not create a true global cap across all devices, and response-size estimates may differ from Supabase-billed egress.
+
+### Important reliability requirement
+Expiry entries remain saved in Room DB until a successful server acknowledgement. If the Supabase project/API is paused, restricted, or unavailable, uploads cannot complete and must remain queued locally for retry. Local MASTER import protects product lookup, not remote upload availability.
+
+### Next implementation discussion
+Before coding, choose whether the target is a soft warning/throttle or a strict application-side global budget. A reliable global budget would require a centralized coordinator/server-side accounting mechanism shared by all devices. Do not implement or alter Supabase until the user explicitly approves.
