@@ -6,6 +6,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.widget.Toast
 import android.content.Intent
 import androidx.core.content.FileProvider
 import java.io.File
@@ -1337,16 +1338,21 @@ class MainActivity : ComponentActivity() {
                                                 updateStatus = "Checking GitHub for the latest release…"
                                                 updateInfo = null
                                                 downloadedUpdateApk = null
-                                                updateDialogOpen = true
+                                                updateDialogOpen = false
                                                 try {
                                                     updateInfo = AppUpdateManager.checkForUpdate()
-                                                    updateStatus = if (updateInfo == null) {
-                                                        "This app is already up to date."
+                                                    if (updateInfo != null) {
+                                                        updateStatus = "Version ${updateInfo!!.versionName} is available."
+                                                        updateDialogOpen = true
                                                     } else {
-                                                        "Version ${updateInfo!!.versionName} is available."
+                                                        Toast.makeText(this@MainActivity, "This app is already up to date.", Toast.LENGTH_SHORT).show()
                                                     }
                                                 } catch (error: Exception) {
-                                                    updateStatus = error.message ?: "Could not check for updates."
+                                                    Toast.makeText(
+                                                        this@MainActivity,
+                                                        error.message ?: "Could not check for updates.",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
                                                 } finally {
                                                     updateChecking = false
                                                 }
