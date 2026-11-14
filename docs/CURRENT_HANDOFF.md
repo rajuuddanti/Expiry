@@ -336,3 +336,19 @@ Read-only edge-log inspection for 2026-11-14 (00:00–11:10 IST) showed successf
 - Version source was advanced to `versionCode 4` / `versionName 0.2.3` (commits recorded in prior handoff).
 - The user previously confirmed release `v0.2.2` was published. The 0.2.1 → 0.2.2 in-app update device test was not confirmed.
 - Version 0.2.3 build, release publication, and end-to-end device update remain unverified in this handoff. Do not infer these from the version bump.
+
+
+## 2026-11-14 — latest app changes (source committed; build/device test pending)
+
+Active branch: `feature/in-app-updates`.
+
+- Product MASTER download is now manual-only through Settings → **SYNC NOW**. The existing 20-day cooldown remains unchanged.
+- `ExpirySyncWorker` no longer calls product-master `sync()`; background initial/periodic jobs now upload pending expiry entries only. Save-time retry upload remains.
+- App update check remains automatic shortly after launch and uses GitHub Releases only (no Supabase calls in `AppUpdateManager`).
+- Every detected newer release is mandatory, regardless of `update.json`'s mandatory flag. The popup cannot be dismissed and has UPDATE → download progress → INSTALL UPDATE. No LATER/CLOSE.
+- Settings manual update check opens the blocking popup only when a newer release exists; otherwise it shows an up-to-date toast.
+- Version is now `versionCode 5` / `versionName 0.2.4`.
+
+Important distinction: `fetchReturnRules()` still reads return rules from Supabase at app startup. This is separate from the updater and was not changed. If GitHub is unreachable, the app cannot verify a new release and remains usable; after a newer release is detected, normal use is blocked by the mandatory dialog.
+
+Next: pull branch, build locally, confirm the installed signing identity, test download/install/update with a test release, and verify local Room data persists. Publish a GitHub Release for v0.2.4 only after the APK is built and its SHA-256 is used in `update.json`. No build, release, or device test is claimed yet.
