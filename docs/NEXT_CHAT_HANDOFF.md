@@ -127,3 +127,56 @@ The user asked to revert the temporary Settings icon change and publish another 
 - No build or device test was run by the assistant.
 Next: user runs `git pull origin feature/in-app-updates`, builds locally, calculates APK SHA-256 with PowerShell `Get-FileHash`, and prepares release `v0.2.3` with APK named `MahaMart-Expiry-Manager-v0.2.3.apk` plus exact lowercase `update.json`. JSON values: versionCode 4, versionName 0.2.3, matching apkAssetName, mandatory false, releaseNotes "Restored the original Settings gear icon.", and actual built APK SHA-256.
 The user screenshot confirmed v0.2.2 is published/latest with correct APK and `update.json`. Do not claim 0.2.1 → 0.2.2 in-app update succeeded; user has not reported the result. If they want to test 0.2.2 separately, do that before publishing 0.2.3 because 0.2.3 becomes Latest.
+
+
+## 2026-11-14 — product-master sync must become manual-only (decision; implementation pending)
+
+The user identified repeated complete product-master downloads as the cause of avoidable Supabase egress and requested that product-master sync be manual on every device.
+
+### Agreed direction
+- App opens using the locally cached Room product master.
+- Do not automatically download `public.MASTER` on launch, resume, or in the background.
+- Keep a clearly available manual **SYNC NOW** action.
+- A manual action downloads the complete master using the existing pagination approach.
+- Replace/update the local master only after the complete download succeeds; if sync fails, preserve the previous local master.
+- Prevent overlapping manual master syncs.
+- Keep expiry-entry uploads, local history, category/rule behavior, and the GitHub in-app updater unchanged.
+
+### Important implementation boundary
+This is a requirement/plan only. No Kotlin source, WorkManager configuration, Supabase function, database schema, or release asset was changed as part of this documentation update.
+
+The existing source history includes a 20-day manual-sync cooldown and background WorkManager behavior. Both must be inspected in the current `feature/in-app-updates` source before implementation. The latest user request is manual-only across devices; confirm whether manual sync should be available at any time or retain the 20-day cooldown before removing/changing that cooldown.
+
+### Supabase enforcement
+- Phase 1 can be implemented in the Android app without changing Supabase schema or project configuration.
+- App-only enforcement does not stop old installed app versions from making automatic requests.
+- Optional Phase 2: after the updated app is deployed, add a server-side request guard so MASTER downloads require an explicit manual-sync request marker/header. Test the guard against the actual PostgREST request path before enabling it.
+- Do not claim Supabase enforcement exists until implemented and HTTP-tested.
+
+### Rollout
+Use the existing GitHub Releases + `update.json` in-app updater to distribute a new app version after build, signing, and device tests. Publishing a GitHub Release is separate from pushing source code. Do not claim that all devices have updated until rollout is verified.
+
+## 2026-11-14 — Supabase MASTER egress investigation
+
+Read-only edge-log inspection for 2026-11-14 (00:00–11:10 IST) showed successful GET pagination against `/rest/v1/MASTER`.
+
+- Request Range headers show pages of 1,000 rows (for example, `0-999`, `1000-1999`).
+- The observed master contained 125,120 rows, so a full download requires 126 page requests (the last page covers rows 125,000–125,119).
+- Confirmed complete page sequences by user-agent signature:
+  - Xiaomi `24108PCE2I`, Android 16: 1,722 page requests; 12 complete sequences confirmed, with 5 additional first-page starts beyond the 12 matched final-page requests.
+  - Xiaomi `24108PCE2I`, Android 15: 499 page requests; 4 complete sequences confirmed, with additional partial activity.
+  - Vivo `V2240`, Android 15: 378 page requests; 3 complete sequences confirmed.
+  - Xiaomi `2312BPC51H`, Android 16: 232 page requests; 1 complete sequence confirmed.
+  - Xiaomi `24108PCE2I`, Android 14: 126 page requests; 1 complete sequence confirmed.
+  - Moto G57 Power, Android 17: 26 page requests; no complete sequence confirmed in this window.
+- At least 21 complete master downloads are therefore confirmed across these signatures in the checked window. Partial attempts are additional.
+- IP addresses varied and must not be interpreted as physical-device counts. A user-agent signature is not proof of an exact handset count or store identity.
+- Supabase log response content-length values were not populated in the inspected aggregate, so this investigation identifies request activity, not an exact byte/egress total.
+- No additional device was blocked and no historical data was changed as part of this investigation.
+
+## 2026-11-14 — updater release state carried forward
+
+- Working branch: `feature/in-app-updates`.
+- Version source was advanced to `versionCode 4` / `versionName 0.2.3` (commits recorded in prior handoff).
+- The user previously confirmed release `v0.2.2` was published. The 0.2.1 → 0.2.2 in-app update device test was not confirmed.
+- Version 0.2.3 build, release publication, and end-to-end device update remain unverified in this handoff. Do not infer these from the version bump.
