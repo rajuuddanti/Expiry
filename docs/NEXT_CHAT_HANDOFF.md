@@ -192,3 +192,11 @@ Branch: `feature/in-app-updates`; app version source: 0.2.4 / versionCode 5.
 - Expiry-entry background uploads and save-time retry remain enabled.
 - `fetchReturnRules()` still calls Supabase at startup; do not describe the entire app launch as Supabase-free. Only the updater check/download is GitHub-only.
 - Build, CI, APK signature compatibility, v0.2.4 release publication, and device update remain unverified. Test before rollout.
+
+
+## 2026-11-14 — APK hash workflow documentation
+
+- New guide: `docs/APK_HASH_AND_RELEASE_CHECKLIST.md`.
+- It documents how to locate the downloaded APK in Windows Downloads and calculate its SHA-256 with PowerShell `Get-FileHash`.
+- The v0.2.4 browser download was named `MahaMart-Expiry-Manager-v0.2.4.apk.apk`; the doubled suffix is a local downloaded filename detail. Keep the GitHub asset name and `update.json` `apkAssetName` identical.
+- Always hash the exact APK asset, not another debug/intermediate build. SHA-256 integrity verification is separate from Android APK signing-certificate compatibility.
