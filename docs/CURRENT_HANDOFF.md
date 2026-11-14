@@ -352,3 +352,13 @@ Active branch: `feature/in-app-updates`.
 Important distinction: `fetchReturnRules()` still reads return rules from Supabase at app startup. This is separate from the updater and was not changed. If GitHub is unreachable, the app cannot verify a new release and remains usable; after a newer release is detected, normal use is blocked by the mandatory dialog.
 
 Next: pull branch, build locally, confirm the installed signing identity, test download/install/update with a test release, and verify local Room data persists. Publish a GitHub Release for v0.2.4 only after the APK is built and its SHA-256 is used in `update.json`. No build, release, or device test is claimed yet.
+
+
+## 2026-11-14 — APK SHA-256 workflow for GitHub releases
+
+- Added `docs/APK_HASH_AND_RELEASE_CHECKLIST.md` with the Windows PowerShell command used to calculate the SHA-256 of the exact downloaded APK asset:
+  `Get-FileHash "$env:USERPROFILE\Downloads\MahaMart-Expiry-Manager-v0.2.4.apk.apk" -Algorithm SHA256`
+- The browser-downloaded v0.2.4 file on the user's PC was named `MahaMart-Expiry-Manager-v0.2.4.apk.apk` (double extension). Use the exact local filename when hashing; the GitHub asset filename and `apkAssetName` must still match each other exactly.
+- SHA-256 verifies downloaded file integrity against `update.json`; it is not the Android signing-certificate fingerprint. Signing compatibility must be checked separately.
+- For future releases, calculate the hash from the exact APK being uploaded, set `update.json` accordingly, then download the published asset and hash it again to verify the uploaded copy.
+- User asked to commit and push the hash instructions as Markdown. The guide was committed to this branch. See its checklist before preparing another release.
