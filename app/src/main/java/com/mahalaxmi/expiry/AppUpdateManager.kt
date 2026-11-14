@@ -62,7 +62,7 @@ object AppUpdateManager {
         AppUpdate(
             versionCode = targetCode,
             versionName = manifest.optString("versionName", release.optString("tag_name")),
-            mandatory = manifest.optBoolean("mandatory", false),
+            mandatory = true,
             releaseNotes = manifest.optString("releaseNotes", release.optString("body")),
             apkUrl = resolvedApk ?: throw IllegalStateException("Release is missing the APK asset."),
             sha256 = manifest.optString("sha256")
