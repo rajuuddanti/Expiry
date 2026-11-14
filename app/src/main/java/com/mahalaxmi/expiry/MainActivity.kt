@@ -555,17 +555,22 @@ class MainActivity : ComponentActivity() {
                 if (updateDialogOpen) {
                     val availableUpdate = updateInfo
                     AlertDialog(
-                        onDismissRequest = { if (!updateDownloading && availableUpdate?.mandatory != true) updateDialogOpen = false },
-                        title = { Text(if (availableUpdate == null) "App updates" else "Update available • ${availableUpdate.versionName}") },
+                        onDismissRequest = { },
+                        title = {
+                            Text(
+                                if (availableUpdate == null) "Update required"
+                                else "Update required • ${availableUpdate.versionName}"
+                            )
+                        },
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(updateStatus)
-                                if (availableUpdate != null) {
-                                    if (availableUpdate.mandatory) {
-                                        Text("This update is marked as required by the administrator.", color = MahalaxmiRed, fontWeight = FontWeight.Bold)
+                                Text(
+                                    when {
+                                        updateDownloading -> "Downloading update… Please wait."
+                                        downloadedUpdateApk != null -> "Download complete. Install the update to continue."
+                                        else -> "A new version is available. Update the app to continue using MahaMart Expiry Manager."
                                     }
-                                    if (availableUpdate.releaseNotes.isNotBlank()) Text(availableUpdate.releaseNotes)
-                                }
+                                )
                                 if (updateDownloading) {
                                     LinearProgressIndicator(
                                         progress = { updateProgress / 100f },
@@ -574,49 +579,57 @@ class MainActivity : ComponentActivity() {
                                     )
                                     Text("$updateProgress% downloaded", fontSize = 12.sp)
                                 }
+                                if (updateStatus.isNotBlank()) {
+                                    Text(updateStatus, fontSize = 12.sp, color = Color.Gray)
+                                }
                             }
                         },
                         confirmButton = {
                             if (availableUpdate != null && downloadedUpdateApk == null) {
-                                TextButton(
+                                Button(
                                     enabled = !updateDownloading,
                                     onClick = {
                                         scope.launch {
                                             updateDownloading = true
-                                            updateStatus = "Downloading update…"
+                                            updateStatus = "Preparing download…"
                                             updateProgress = 0
                                             try {
                                                 downloadedUpdateApk = AppUpdateManager.download(availableUpdate, applicationContext) {
                                                     updateProgress = it
                                                 }
-                                                updateStatus = "Download complete. Ready to install."
+                                                updateStatus = "APK downloaded successfully."
                                             } catch (error: Exception) {
-                                                updateStatus = error.message ?: "Could not download update."
+                                                updateStatus = error.message ?: "Download failed. Tap UPDATE to retry."
                                             } finally {
                                                 updateDownloading = false
                                             }
                                         }
-                                    }
-                                ) { Text("DOWNLOAD", color = MahalaxmiRed) }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
+                                ) {
+                                    Text(if (updateDownloading) "DOWNLOADING…" else "UPDATE")
+                                }
                             } else if (downloadedUpdateApk != null) {
-                                TextButton(onClick = {
-                                    if (AppUpdateManager.canInstallPackages(this@MainActivity)) {
-                                        runCatching { AppUpdateManager.install(this@MainActivity, downloadedUpdateApk!!) }
-                                            .onFailure { updateStatus = it.message ?: "Could not open installer." }
-                                    } else {
-                                        updateStatus = "Allow MahaMart Expiry Manager to install this update, then return here and tap INSTALL."
-                                        AppUpdateManager.openInstallPermissionSettings(this@MainActivity)
-                                    }
-                                }) { Text("INSTALL", color = MahalaxmiRed) }
-                            } else {
-                                TextButton(onClick = { updateDialogOpen = false }) { Text("CLOSE") }
+                                Button(
+                                    onClick = {
+                                        if (AppUpdateManager.canInstallPackages(this@MainActivity)) {
+                                            runCatching {
+                                                AppUpdateManager.install(this@MainActivity, downloadedUpdateApk!!)
+                                            }.onFailure {
+                                                updateStatus = it.message ?: "Could not open Android installer."
+                                            }
+                                        } else {
+                                            updateStatus = "Allow installation for MahaMart Expiry Manager, then return and tap INSTALL UPDATE."
+                                            AppUpdateManager.openInstallPermissionSettings(this@MainActivity)
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
+                                ) {
+                                    Text("INSTALL UPDATE")
+                                }
                             }
                         },
-                        dismissButton = {
-                            if (availableUpdate != null && downloadedUpdateApk == null && !availableUpdate.mandatory) {
-                                TextButton(onClick = { updateDialogOpen = false }) { Text("LATER") }
-                            }
-                        }
+                        dismissButton = null
                     )
                 }
                 if (showStorePinDialog) {
