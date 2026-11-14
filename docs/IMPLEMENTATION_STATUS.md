@@ -240,3 +240,10 @@ Implemented on `feature/in-app-updates`:
 Boundary: `fetchReturnRules()` still reads return rules from Supabase on app startup. That is separate from the GitHub updater and has not been removed. If GitHub is unreachable, the launch check cannot confirm a release and the app remains usable. Once a release is detected, the update popup blocks normal use.
 
 Not yet verified: Gradle build, CI result, APK signing compatibility, GitHub v0.2.4 release publication, and end-to-end device installation. Android's package installer still requires user confirmation.
+
+
+## 2026-11-14 — APK SHA-256 release procedure documented
+
+- Added `docs/APK_HASH_AND_RELEASE_CHECKLIST.md` on `feature/in-app-updates`.
+- Documents the PowerShell `Get-FileHash ... -Algorithm SHA256` command, exact-file requirement, double-extension download naming pitfall, manifest alignment, and post-upload checksum verification.
+- Documentation only; no app source, APK asset, signing key, release asset, Supabase configuration, or database was changed by this documentation commit.
