@@ -13,8 +13,8 @@ class ExpirySyncWorker(
         return try {
             val dao = ExpiryDatabase.getInstance(applicationContext).expiryDao()
             val repository = SupabaseSyncRepository(applicationContext, dao)
-            repository.sync()
-            // Retry locally saved expiry entries whenever this connected-network worker runs.
+            // Background work is upload-only. Product MASTER refresh is manual from Settings
+            // and remains protected by the 20-day successful-sync cooldown.
             repository.uploadPendingEntries()
             Result.success()
         } catch (_: Exception) {
