@@ -180,3 +180,15 @@ Read-only edge-log inspection for 2026-11-14 (00:00–11:10 IST) showed successf
 - Version source was advanced to `versionCode 4` / `versionName 0.2.3` (commits recorded in prior handoff).
 - The user previously confirmed release `v0.2.2` was published. The 0.2.1 → 0.2.2 in-app update device test was not confirmed.
 - Version 0.2.3 build, release publication, and end-to-end device update remain unverified in this handoff. Do not infer these from the version bump.
+
+
+## 2026-11-14 — latest source changes to verify
+
+Branch: `feature/in-app-updates`; app version source: 0.2.4 / versionCode 5.
+
+- Background `ExpirySyncWorker` is upload-only; it no longer refreshes product MASTER.
+- Manual Settings → SYNC NOW is the only product-master download path and retains the 20-day cooldown.
+- Automatic launch updater checks GitHub Releases only. Any newer release is mandatory and opens a non-dismissible popup: UPDATE → in-dialog download progress → INSTALL UPDATE. Manual check shows an up-to-date toast if no release is newer.
+- Expiry-entry background uploads and save-time retry remain enabled.
+- `fetchReturnRules()` still calls Supabase at startup; do not describe the entire app launch as Supabase-free. Only the updater check/download is GitHub-only.
+- Build, CI, APK signature compatibility, v0.2.4 release publication, and device update remain unverified. Test before rollout.
