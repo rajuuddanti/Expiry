@@ -224,3 +224,19 @@ Read-only edge-log inspection for 2026-11-14 (00:00–11:10 IST) showed successf
 - Version source was advanced to `versionCode 4` / `versionName 0.2.3` (commits recorded in prior handoff).
 - The user previously confirmed release `v0.2.2` was published. The 0.2.1 → 0.2.2 in-app update device test was not confirmed.
 - Version 0.2.3 build, release publication, and end-to-end device update remain unverified in this handoff. Do not infer these from the version bump.
+
+
+## 2026-11-14 — manual-only product master and mandatory app update flow
+
+Implemented on `feature/in-app-updates`:
+
+- `ExpirySyncWorker` is upload-only. Existing initial/periodic background work and save-time retry can upload pending expiry entries, but do not download the product master.
+- Product-master download remains manual through Settings → **SYNC NOW**, retaining the existing 20-day successful-sync cooldown.
+- Automatic app-update check remains on app launch and uses GitHub Releases only; updater code does not access Supabase.
+- Any detected newer version is mandatory regardless of the manifest flag. The popup is non-dismissible, with UPDATE → download progress in the same popup → INSTALL UPDATE. No LATER/CLOSE.
+- Manual **CHECK FOR APP UPDATES** only opens the blocking popup when a newer version exists; otherwise it shows an up-to-date toast.
+- App version advanced to 0.2.4 / versionCode 5.
+
+Boundary: `fetchReturnRules()` still reads return rules from Supabase on app startup. That is separate from the GitHub updater and has not been removed. If GitHub is unreachable, the launch check cannot confirm a release and the app remains usable. Once a release is detected, the update popup blocks normal use.
+
+Not yet verified: Gradle build, CI result, APK signing compatibility, GitHub v0.2.4 release publication, and end-to-end device installation. Android's package installer still requires user confirmation.
