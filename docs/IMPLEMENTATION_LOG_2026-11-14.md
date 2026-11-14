@@ -56,5 +56,34 @@ Read-only edge-log inspection for 2026-11-14 (00:00–11:10 IST) showed successf
 - The user previously confirmed release `v0.2.2` was published. The 0.2.1 → 0.2.2 in-app update device test was not confirmed.
 - Version 0.2.3 build, release publication, and end-to-end device update remain unverified in this handoff. Do not infer these from the version bump.
 
-## Changes made in this commit
-Documentation only. No app source, Supabase configuration/schema, database rows, release assets, or device access controls were changed.
+## Earlier documentation update
+The preceding commit recorded investigation findings only. The implementation below was added afterward.
+
+
+## 2026-11-14 — manual-only MASTER refresh and mandatory app updates
+
+Implemented on `feature/in-app-updates`:
+
+- Removed the product-master download from `ExpirySyncWorker`. The existing initial/periodic WorkManager jobs now only upload locally saved pending expiry entries; they no longer call `repository.sync()` or download `public.MASTER`.
+- The Settings **SYNC NOW** action remains the only product-master download entry point. Its existing 20-day cooldown and successful-sync timestamp behavior were preserved.
+- The automatic app-update check remains shortly after app launch and reads GitHub Releases only. `AppUpdateManager` does not call Supabase.
+- Every detected newer release is now mandatory in app code, regardless of the `mandatory` value in `update.json`.
+- The update dialog cannot be dismissed. It shows one primary action: **UPDATE**, then download progress in the same dialog, then **INSTALL UPDATE** after download. No LATER/CLOSE action remains.
+- The Settings manual update check opens the mandatory dialog only when a newer release exists; when already up to date it shows a toast instead of opening a blocking empty dialog.
+- Bumped app version to `versionCode 5` / `versionName 0.2.4` so these changes can be distributed as a new release.
+
+Important boundaries:
+- Expiry uploads remain enabled through the existing WorkManager jobs and save-time retry worker.
+- Return rules are still fetched from Supabase at app startup by the existing `fetchReturnRules()` call. That is separate from the updater; the updater itself uses GitHub only.
+- If GitHub cannot be reached during the launch check, no newer version can be confirmed and the current app remains usable. Once a newer release is detected, its dialog is mandatory and non-dismissible.
+- Android still requires the system package installer and user confirmation. If install-from-this-source permission is not enabled, Android Settings must be opened first.
+- Source commits do not prove a successful Gradle build, release publication, APK signing match, or device update. Those remain to be tested.
+
+Source commits:
+- MainActivity mandatory dialog/manual check: `8f9382c`, `9a4b87c`
+- Force newer releases mandatory: `300a656`
+- Background worker upload-only: `f4ca462`
+- Version 0.2.4 / code 5: `e1e4624`
+
+## Changes made
+App source and version updated as described above. No Supabase schema/configuration, Room schema/version, historical rows, or release assets were changed.
