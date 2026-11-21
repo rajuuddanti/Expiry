@@ -41,7 +41,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private val MahalaxmiRed = Color(0xFFB71C1C)
+private val MahalaxmiRed = Color(0xFFC62828)
 private val IndiaZone = ZoneId.of("Asia/Kolkata")
 private enum class AppScreen { Scan, Lookup, History, Settings }
 
@@ -172,6 +172,7 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
+            MahaMartRetailTheme {
             val scope = rememberCoroutineScope()
             val entries by dao.observeEntries().collectAsState(initial = emptyList())
             val currentSessionDate = run {
@@ -573,7 +574,7 @@ class MainActivity : ComponentActivity() {
                     }
                 ) { padding ->
                     Column(
-                        Modifier.fillMaxSize().padding(padding).background(Color(0xFFF7F7F7))
+                        Modifier.fillMaxSize().padding(padding).background(Color(0xFFFAF8FF))
                     ) {
                         Column(
                             Modifier.fillMaxWidth()
@@ -1074,6 +1075,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
             }
         }
     }
