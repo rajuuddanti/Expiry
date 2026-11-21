@@ -608,8 +608,8 @@ class MainActivity : ComponentActivity() {
                         when (screen) {
                             AppScreen.Scan -> {
                                 Column(
-                                    Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp).verticalScroll(rememberScrollState()),
-                                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                                    Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp).verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     Column(
                                         Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
@@ -703,20 +703,21 @@ class MainActivity : ComponentActivity() {
                                     }
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(14.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0EAF6))
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
                                     ) {
-                                        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                                        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                             Text(
                                                 "CURRENT STORE",
-                                                color = Color(0xFF77717E),
+                                                color = RetailSlate,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.SemiBold,
                                                 letterSpacing = 0.5.sp
                                             )
                                             Text(
                                                 if (store.isBlank()) "Select store in Settings" else store,
-                                                color = Color(0xFF29252F),
+                                                color = RetailInk,
                                                 fontSize = 16.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -731,7 +732,7 @@ class MainActivity : ComponentActivity() {
                                             value = code, onValueChange = { code = it },
                                             label = { Text("SKU code / scanned barcode") },
                                             modifier = Modifier.weight(1f), singleLine = true,
-                                            shape = RoundedCornerShape(11.dp),
+                                            shape = RoundedCornerShape(12.dp),
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedBorderColor = MahalaxmiRed,
                                                 unfocusedBorderColor = Color(0xFFD0D4D9),
@@ -748,7 +749,7 @@ class MainActivity : ComponentActivity() {
                                                     .addOnCanceledListener { message = "Scan cancelled" }
                                                     .addOnFailureListener { e -> message = "Scanner error: ${e.localizedMessage ?: "Please try again"}" }
                                             },
-                                            modifier = Modifier.size(width = 60.dp, height = 56.dp),
+                                            modifier = Modifier.size(width = 56.dp, height = 56.dp),
                                             contentPadding = PaddingValues(0.dp),
                                             colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
                                         ) { Text("📷", fontSize = 24.sp) }
@@ -811,10 +812,10 @@ class MainActivity : ComponentActivity() {
                                                 picker.show()
                                             }
                                         },
-                                        modifier = Modifier.fillMaxWidth().height(46.dp),
+                                        modifier = Modifier.fillMaxWidth().height(52.dp),
                                         shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF5D4A8A)),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD2CBDD))
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = RetailSlate),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1))
                                     ) { Text("Expiry date: $expiry  •  Choose date", fontWeight = FontWeight.SemiBold) }
 
                                     Button(
@@ -876,9 +877,11 @@ class MainActivity : ComponentActivity() {
                                             items(filteredCategoryProducts, key = { "category-${it.rowId}" }) { product ->
                                                 Card(
                                                     Modifier.fillMaxWidth(),
-                                                    shape = RoundedCornerShape(8.dp)
+                                                    shape = RoundedCornerShape(16.dp),
+                                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
                                                 ) {
-                                                    Column(Modifier.padding(10.dp)) {
+                                                    Column(Modifier.padding(14.dp)) {
                                                         Text(product.skuName, fontWeight = FontWeight.SemiBold)
                                                         Text(product.skuCode, fontSize = 12.sp, color = Color.Gray)
                                                     }
@@ -921,7 +924,7 @@ class MainActivity : ComponentActivity() {
                                     } else {
                                         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                             items(currentSessionEntries, key = { it.id }) { item ->
-                                                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                                                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
                                                     Column(Modifier.padding(12.dp)) {
                                                         Text(item.productName, fontWeight = FontWeight.Bold)
                                                         if (item.expiry == "NO EXPIRY") {
