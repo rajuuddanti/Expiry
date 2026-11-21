@@ -11,13 +11,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val RetailRuby = Color(0xFFC62828)
-private val RetailInk = Color(0xFF131B2E)
-private val RetailSlate = Color(0xFF515F74)
+internal val RetailInk = Color(0xFF131B2E)
+internal val RetailSlate = Color(0xFF515F74)
 private val RetailGreen = Color(0xFF027836)
 private val RetailCanvas = Color(0xFFFAF8FF)
 private val RetailOutline = Color(0xFFE4BEBA)
 
-private val RetailFloorColors = lightColorScheme(
+internal val RetailFloorColors = lightColorScheme(
     primary = RetailRuby,
     onPrimary = Color.White,
     primaryContainer = Color(0xFFC62828),
