@@ -414,8 +414,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            MaterialTheme {
-                if (showStorePinDialog) {
+            if (showStorePinDialog) {
                     AlertDialog(
                         onDismissRequest = { showStorePinDialog = false; storePinInput = ""; storePinError = "" },
                         title = { Text("Authorize store change") },
@@ -545,30 +544,38 @@ class MainActivity : ComponentActivity() {
                 }
                 Scaffold(
                     bottomBar = {
-                        NavigationBar(containerColor = Color.White) {
+                        NavigationBar(
+                            containerColor = Color.White,
+                            contentColor = RetailFloorColors.primary,
+                            tonalElevation = 2.dp
+                        ) {
                             NavigationBarItem(
                                 selected = screen == AppScreen.Scan,
                                 onClick = { screen = AppScreen.Scan },
                                 icon = { Text("▣", fontSize = 20.sp) },
-                                label = { Text("Scan") }
+                                label = { Text("Scan") },
+                                colors = NavigationBarItemDefaults.colors(indicatorColor = Color(0xFFFEE2E2), selectedIconColor = RetailFloorColors.primary, selectedTextColor = RetailFloorColors.primary, unselectedIconColor = RetailSlate, unselectedTextColor = RetailSlate)
                             )
                             NavigationBarItem(
                                 selected = screen == AppScreen.Lookup,
                                 onClick = { screen = AppScreen.Lookup },
                                 icon = { Text("⌕", fontSize = 20.sp) },
-                                label = { Text("SKU Lookup") }
+                                label = { Text("SKU Lookup") },
+                                colors = NavigationBarItemDefaults.colors(indicatorColor = Color(0xFFFEE2E2), selectedIconColor = RetailFloorColors.primary, selectedTextColor = RetailFloorColors.primary, unselectedIconColor = RetailSlate, unselectedTextColor = RetailSlate)
                             )
                             NavigationBarItem(
                                 selected = screen == AppScreen.History,
                                 onClick = { screen = AppScreen.History },
                                 icon = { Text("☷", fontSize = 20.sp) },
-                                label = { Text("History") }
+                                label = { Text("History") },
+                                colors = NavigationBarItemDefaults.colors(indicatorColor = Color(0xFFFEE2E2), selectedIconColor = RetailFloorColors.primary, selectedTextColor = RetailFloorColors.primary, unselectedIconColor = RetailSlate, unselectedTextColor = RetailSlate)
                             )
                             NavigationBarItem(
                                 selected = screen == AppScreen.Settings,
                                 onClick = { screen = AppScreen.Settings },
                                 icon = { Text("⚙", fontSize = 20.sp) },
-                                label = { Text("Settings") }
+                                label = { Text("Settings") },
+                                colors = NavigationBarItemDefaults.colors(indicatorColor = Color(0xFFFEE2E2), selectedIconColor = RetailFloorColors.primary, selectedTextColor = RetailFloorColors.primary, unselectedIconColor = RetailSlate, unselectedTextColor = RetailSlate)
                             )
                         }
                     }
@@ -1075,7 +1082,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-            }
             }
         }
     }
