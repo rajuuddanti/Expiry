@@ -297,8 +297,7 @@ class MainActivity : ComponentActivity() {
                             !entry.expiry.equals("NO EXPIRY", ignoreCase = true) &&
                             normalizedRuleName(entry.category) == normalizedRuleName(selectedCategory)
                     }
-                    if (existingExpiryEntries.isNotEmpty()) {                        message = "$selectedCategory already has active expiry entries today. Delete them from History before marking NO EXPIRY."                        return@launch
-                    }
+                    if (existingExpiryEntries.isNotEmpty()) {                        message = "$selectedCategory already has active expiry entries today. Delete them from History before marking NO EXPIRY."                        return@launch                    }
                     if (dao.activeNoExpiryCount(store, session, selectedCategory) > 0) {
                         message = "Already marked NO EXPIRY for $selectedCategory today."
                         return@launch
@@ -597,8 +596,7 @@ class MainActivity : ComponentActivity() {
                                 "Expiry Manager",
                                 color = Color(0xFF25282C),                                fontSize = 25.sp,
                                 lineHeight = 29.sp,                                fontWeight = FontWeight.ExtraBold
-                            )
-                        }
+                            )                        }
                         Divider(color = Color(0xFFE5E7EB), thickness = 1.dp)
 
                         when (screen) {
@@ -897,17 +895,22 @@ class MainActivity : ComponentActivity() {
                                         LazyColumn(
                                             modifier = Modifier.fillMaxSize(),
                                             verticalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            items(filteredCategoryProducts, key = { "category-${it.rowId}" }) { product ->
+                                        ) {                                            items(filteredCategoryProducts, key = { "category-${it.rowId}" }) { product ->
                                                 Card(
                                                     Modifier.fillMaxWidth(),
                                                     shape = RoundedCornerShape(16.dp),
                                                     colors = CardDefaults.cardColors(containerColor = Color.White),
                                                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
                                                 ) {
-                                                    Column(Modifier.padding(14.dp)) {
-                                                        Text(product.skuName, fontWeight = FontWeight.SemiBold)
-                                                        Text(product.skuCode, fontSize = 12.sp, color = Color.Gray)
+                                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                        Text(product.skuName, fontWeight = FontWeight.Bold, color = RetailInk, fontSize = 15.sp)
+                                                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                            Text("SKU  ${product.skuCode}", fontSize = 12.sp, color = RetailSlate)
+                                                            if (product.scanCode.isNotBlank()) {
+                                                                Text("EAN  ${product.scanCode}", fontSize = 12.sp, color = RetailSlate)
+                                                            }
+                                                        }
+                                                        Text("Today's inspection list", fontSize = 10.sp, color = MahalaxmiRed, fontWeight = FontWeight.SemiBold)
                                                     }                                                }
                                             }
                                         }
@@ -968,7 +971,16 @@ class MainActivity : ComponentActivity() {
                                             items(currentSessionEntries, key = { it.id }) { item ->
                                                 Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
                                                     Column(Modifier.padding(12.dp)) {
-                                                        Text(item.productName, fontWeight = FontWeight.Bold)
+                                                        Text(item.productName, fontWeight = FontWeight.Bold, color = RetailInk, fontSize = 15.sp)
+                                                        Text(
+                                                            runCatching {
+                                                                java.time.OffsetDateTime.parse(item.createdAt)
+                                                                    .atZoneSameInstant(IndiaZone)
+                                                                    .format(DateTimeFormatter.ofPattern("dd-MM-yyyy  •  hh:mm a"))
+                                                            }.getOrDefault(item.createdAt),
+                                                            fontSize = 11.sp,
+                                                            color = RetailSlate
+                                                        )
                                                         if (item.expiry == "NO EXPIRY") {
                                                             Text("Status: NO EXPIRY FOUND", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
                                                             Text("Checked category: ${item.noExpiryCategory}")
