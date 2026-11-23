@@ -671,28 +671,6 @@ class MainActivity : ComponentActivity() {
                                             confirmButton = { TextButton(onClick = { showReturnRules = false }) { Text("CLOSE") } }
                                         )
                                     }
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(16.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
-                                    ) {
-                                        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                            Text(
-                                                "CURRENT STORE",
-                                                color = RetailSlate,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                letterSpacing = 0.5.sp
-                                            )
-                                            Text(
-                                                if (store.isBlank()) "Select store in Settings" else store,
-                                                color = RetailInk,
-                                                fontSize = 16.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    }
                                     val pendingScanCount = currentSessionEntries.count { it.syncStatus.equals("PENDING", true) }
                                     if (pendingScanCount > 0) {
                                         Card(
@@ -724,6 +702,17 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     }
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+                                    ) {
+                                        Column(
+                                            Modifier.fillMaxWidth().padding(16.dp),
+                                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Text("EAN Barcode or SkuCode", color = Color(0xFF334155), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                                     Row(
                                         Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -839,6 +828,8 @@ class MainActivity : ComponentActivity() {
                                         colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
                                     ) { Text("SAVE ENTRY", fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp) }
                                     if (message.isNotBlank()) Text(message, color = MahalaxmiRed, fontSize = 13.sp)
+                                        }
+                                    }
                                 }
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
