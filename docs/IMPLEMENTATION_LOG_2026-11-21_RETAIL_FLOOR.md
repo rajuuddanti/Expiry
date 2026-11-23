@@ -12,8 +12,8 @@ Created from `feature/no-expiry-fix`. Do not merge to main without approval.
 - Updated the primary ruby red to `#C62828` and the main canvas to `#FAF8FF`.
 - Styled the four-tab NavigationBar with white dock, ruby selected state, soft-red indicator, and slate inactive state.
 - Refined Scan screen spacing, current-store card, scan trigger sizing, date action, and input corner radii.
-- Refined SKU Lookup with a dedicated screen heading, today's scheduled-category chips, and a clearer search field.
-- Refined Entry History with current-business-day context, entry and quantity summary cards, a prominent CSV export action, and a quieter secondary Supabase upload action.
+- Refined SKU Lookup with a dedicated screen heading, today's scheduled-category chips, a clearer search field, and SKU/EAN metadata on each product row.
+- Refined Entry History with current-business-day context, entry and quantity summary cards, a prominent CSV export action, a quieter secondary Supabase upload action, and readable local entry timestamps.
 - Refined Settings with a scrollable layout, clearer section heading, consistent white bordered sync card, and a compact current-store summary card.
 - Refined Scan category presentation into red-tinted capsules and changed the displayed expiry date to DD-MM-YYYY while retaining ISO date storage and parsing.
 
