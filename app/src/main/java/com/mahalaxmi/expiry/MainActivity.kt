@@ -297,8 +297,7 @@ class MainActivity : ComponentActivity() {
                             !entry.expiry.equals("NO EXPIRY", ignoreCase = true) &&
                             normalizedRuleName(entry.category) == normalizedRuleName(selectedCategory)
                     }
-                    if (existingExpiryEntries.isNotEmpty()) {                        message = "$selectedCategory already has active expiry entries today. Delete them from History before marking NO EXPIRY."
-                        return@launch
+                    if (existingExpiryEntries.isNotEmpty()) {                        message = "$selectedCategory already has active expiry entries today. Delete them from History before marking NO EXPIRY."                        return@launch
                     }
                     if (dao.activeNoExpiryCount(store, session, selectedCategory) > 0) {
                         message = "Already marked NO EXPIRY for $selectedCategory today."
@@ -597,8 +596,7 @@ class MainActivity : ComponentActivity() {
                             Text(
                                 "Expiry Manager",
                                 color = Color(0xFF25282C),                                fontSize = 25.sp,
-                                lineHeight = 29.sp,
-                                fontWeight = FontWeight.ExtraBold
+                                lineHeight = 29.sp,                                fontWeight = FontWeight.ExtraBold
                             )
                         }
                         Divider(color = Color(0xFFE5E7EB), thickness = 1.dp)
@@ -613,14 +611,22 @@ class MainActivity : ComponentActivity() {
                                         Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
                                         verticalArrangement = Arrangement.spacedBy(3.dp)
                                     ) {
-                                        todaySchedule.forEach { row ->
-                                            Text(
-                                                row.baseCategory,
-                                                fontSize = 17.sp,
-                                                lineHeight = 21.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF292D32)
-                                            )
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            todaySchedule.forEach { row ->
+                                                Surface(shape = RoundedCornerShape(10.dp), color = Color(0xFFFEE2E2)) {
+                                                    Text(
+                                                        row.baseCategory,
+                                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                                        fontSize = 12.sp,
+                                                        lineHeight = 16.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MahalaxmiRed
+                                                    )
+                                                }
+                                            }
                                         }
                                         if (todaySchedule.isEmpty()) {
                                             Text(
@@ -814,7 +820,12 @@ class MainActivity : ComponentActivity() {
                                         shape = RoundedCornerShape(12.dp),
                                         colors = ButtonDefaults.outlinedButtonColors(contentColor = RetailSlate),
                                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1))
-                                    ) { Text("Expiry date: $expiry  •  Choose date", fontWeight = FontWeight.SemiBold) }
+                                    ) {
+                                        val displayExpiry = runCatching {
+                                            LocalDate.parse(expiry).format(DateTimeFormatter.ofPattern("dd-MM-yyyy"))
+                                        }.getOrDefault(expiry)
+                                        Text("EXPIRY DATE  •  $displayExpiry  •  CHANGE", fontWeight = FontWeight.Bold)
+                                    }
 
                                     Button(
                                         onClick = {
@@ -897,8 +908,7 @@ class MainActivity : ComponentActivity() {
                                                     Column(Modifier.padding(14.dp)) {
                                                         Text(product.skuName, fontWeight = FontWeight.SemiBold)
                                                         Text(product.skuCode, fontSize = 12.sp, color = Color.Gray)
-                                                    }
-                                                }
+                                                    }                                                }
                                             }
                                         }
                                     }
