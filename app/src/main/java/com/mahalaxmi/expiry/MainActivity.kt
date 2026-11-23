@@ -623,56 +623,6 @@ class MainActivity : ComponentActivity() {
                                     Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp).verticalScroll(rememberScrollState()),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Column(
-                                        Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
-                                        verticalArrangement = Arrangement.spacedBy(3.dp)
-                                    ) {
-                                        Row(
-                                            Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            todaySchedule.forEach { row ->
-                                                Surface(shape = RoundedCornerShape(10.dp), color = Color(0xFFFEE2E2)) {
-                                                    Text(
-                                                        row.baseCategory,
-                                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                                                        fontSize = 12.sp,
-                                                        lineHeight = 16.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MahalaxmiRed
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        if (todaySchedule.isEmpty()) {
-                                            Text(
-                                                "No categories scheduled today",
-                                                fontSize = 15.sp,
-                                                color = Color(0xFF73777D)
-                                            )
-                                        }
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                            TextButton(
-                                                onClick = {
-                                                    showReturnRules = true
-                                                    if (returnRules.isEmpty() && !returnRulesLoading) {
-                                                        scope.launch {
-                                                            returnRulesLoading = true
-                                                            returnRulesError = ""
-                                                            try {
-                                                                returnRules = syncRepository.fetchReturnRules()
-                                                            } catch (error: Exception) {
-                                                                returnRulesError = error.message ?: "Could not load return rules."
-                                                            } finally {
-                                                                returnRulesLoading = false
-                                                            }
-                                                        }
-                                                    }
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                                            ) { Text("ⓘ Return Rules", fontSize = 12.sp, color = MahalaxmiRed, fontWeight = FontWeight.Bold) }
-                                        }
-                                    }
                                     if (showReturnRules) {
                                         val categoryRules = todaySchedule.mapNotNull { row ->
                                             val rule = categoryRuleFor(row.category, returnRules)
@@ -741,6 +691,37 @@ class MainActivity : ComponentActivity() {
                                                 fontSize = 16.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
+                                        }
+                                    }
+                                    val pendingScanCount = currentSessionEntries.count { it.syncStatus.equals("PENDING", true) }
+                                    if (pendingScanCount > 0) {
+                                        Card(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(16.dp),
+                                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFCD34D))
+                                        ) {
+                                            Row(
+                                                Modifier.fillMaxWidth().padding(12.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                            ) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("$pendingScanCount local entries pending sync", color = Color(0xFF92400E), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                    Text("$store · Ready to upload", color = Color(0xFFB45309), fontSize = 11.sp)
+                                                }
+                                                TextButton(
+                                                    onClick = {
+                                                        if (!isUploading) scope.launch {
+                                                            isUploading = true
+                                                            try { uploadMessage = syncRepository.uploadPendingEntries().message }
+                                                            catch (error: Exception) { uploadMessage = error.message ?: "Upload failed; entries remain pending." }
+                                                            finally { isUploading = false }
+                                                        }
+                                                    },
+                                                    enabled = !isUploading
+                                                ) { Text(if (isUploading) "SYNCING…" else "SYNC NOW", color = Color(0xFF92400E), fontWeight = FontWeight.Bold) }
+                                            }
                                         }
                                     }
                                     Row(
@@ -859,6 +840,67 @@ class MainActivity : ComponentActivity() {
                                     ) { Text("SAVE ENTRY", fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp) }
                                     if (message.isNotBlank()) Text(message, color = MahalaxmiRed, fontSize = 13.sp)
                                 }
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+                                ) {
+                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text("TODAY'S SCHEDULE", color = RetailInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                Column(
+                                                Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp),
+                                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                                            ) {
+                                                Row(
+                                                    Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    todaySchedule.forEach { row ->
+                                                        Surface(shape = RoundedCornerShape(10.dp), color = Color(0xFFFEE2E2)) {
+                                                            Text(
+                                                                row.baseCategory,
+                                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                                                fontSize = 12.sp,
+                                                                lineHeight = 16.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = MahalaxmiRed
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                                if (todaySchedule.isEmpty()) {
+                                                    Text(
+                                                        "No categories scheduled today",
+                                                        fontSize = 15.sp,
+                                                        color = Color(0xFF73777D)
+                                                    )
+                                                }
+                                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                                    TextButton(
+                                                        onClick = {
+                                                            showReturnRules = true
+                                                            if (returnRules.isEmpty() && !returnRulesLoading) {
+                                                                scope.launch {
+                                                                    returnRulesLoading = true
+                                                                    returnRulesError = ""
+                                                                    try {
+                                                                        returnRules = syncRepository.fetchReturnRules()
+                                                                    } catch (error: Exception) {
+                                                                        returnRulesError = error.message ?: "Could not load return rules."
+                                                                    } finally {
+                                                                        returnRulesLoading = false
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                                    ) { Text("ⓘ Return Rules", fontSize = 12.sp, color = MahalaxmiRed, fontWeight = FontWeight.Bold) }
+                                                }
+                                            }
+                                    }
+                                }
+
                             }
 
                             AppScreen.Lookup -> {
@@ -938,66 +980,7 @@ class MainActivity : ComponentActivity() {
                                         Text("Current business day • 3 PM to 3 PM", fontSize = 12.sp, color = RetailSlate)
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Card(Modifier.weight(1f), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
-                                            Column(Modifier.padding(12.dp)) {
-                                                Text("ENTRIES", fontSize = 10.sp, color = RetailSlate, fontWeight = FontWeight.Bold)
-                                                Text("${currentSessionEntries.size}", fontSize = 24.sp, color = RetailInk, fontWeight = FontWeight.ExtraBold)
-                                            }
-                                        }
-                                        Card(Modifier.weight(1f), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
-                                            Column(Modifier.padding(12.dp)) {
-                                                Text("QUANTITY", fontSize = 10.sp, color = RetailSlate, fontWeight = FontWeight.Bold)
-                                                Text("${currentSessionEntries.filter { !it.expiry.equals("NO EXPIRY", true) }.sumOf { it.quantity }}", fontSize = 24.sp, color = RetailInk, fontWeight = FontWeight.ExtraBold)
-                                            }
-                                        }
-                                    }
-                                    Button(onClick = { shareCsv(currentSessionEntries) }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text("EXPORT CSV / SHARE", fontWeight = FontWeight.Bold) }
-                                    Button(                                        onClick = {
-                                            if (!isUploading) {
-                                                scope.launch {
-                                                    isUploading = true
-                                                    uploadMessage = "Uploading pending expiry records to Supabase…"
-                                                    try {
-                                                        val result = syncRepository.uploadPendingEntries()
-                                                        uploadMessage = result.message
-                                                    } catch (error: Exception) {
-                                                        uploadMessage = "Upload failed; records remain pending. ${error.message ?: "Check internet, table and permissions."}"
-                                                    } finally {
-                                                        isUploading = false
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        enabled = !isUploading,
-                                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                                        shape = RoundedCornerShape(14.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE8EDF3), contentColor = RetailInk)
-                                    ) { Text(if (isUploading) "UPLOADING…" else "UPLOAD TO SUPABASE", fontWeight = FontWeight.Bold) }
-                                    Text(uploadMessage, color = if (uploadMessage.startsWith("Upload failed")) MahalaxmiRed else Color.Gray, fontSize = 12.sp)
-                                    if (currentSessionEntries.isEmpty()) {
-                                        Text("No entries for the current day yet.")
-                                    } else {
-                                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            items(currentSessionEntries, key = { it.id }) { item ->
-                                                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
-                                                    Column(Modifier.padding(12.dp)) {
-                                                        Text(item.productName, fontWeight = FontWeight.Bold, color = RetailInk, fontSize = 15.sp)
-                                                        Text(
-                                                            runCatching {
-                                                                java.time.OffsetDateTime.parse(item.createdAt)
-                                                                    .atZoneSameInstant(IndiaZone)
-                                                                    .format(DateTimeFormatter.ofPattern("dd-MM-yyyy  •  hh:mm a"))
-                                                            }.getOrDefault(item.createdAt),
-                                                            fontSize = 11.sp,
-                                                            color = RetailSlate
-                                                        )
-                                                        if (item.expiry == "NO EXPIRY") {
-                                                            Text("Status: NO EXPIRY FOUND", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
-                                                            Text("Checked category: ${item.noExpiryCategory}")
-                                                        } else {
-                                                            Text("SKU code: ${item.skuCode}")
-                                                            Text("Ean/SKU Scanned: ${item.scannedCode}")
-                                                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                                                 Text("Qty: ${item.quantity}", color = MahalaxmiRed, fontWeight = FontWeight.Bold)
                                                                 Spacer(Modifier.width(12.dp))
                                                                 Text("Expiry: ${item.expiryDate}")
