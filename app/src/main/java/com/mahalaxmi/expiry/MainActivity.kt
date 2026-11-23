@@ -997,4 +997,401 @@ class MainActivity : ComponentActivity() {
                                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                                     Text("Today's Scheduled Categories — Mark No Expiry", color = Color(0xFF0F172A), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                                     Text("${scheduledSupabaseCategories.size} scheduled", color = Color(0xFF64748B), fontSize = 11.sp)
+                                                }                                                Text("If no expiring stock was found in a scheduled category today, record a No Expiry confirmation.", color = Color(0xFF64748B), fontSize = 12.sp)
+                                                scheduledSupabaseCategories.forEach { candidate ->
+                                                    val isLogged = candidate.trim().uppercase() in loggedNoExpiry
+                                                    Button(onClick = {
+                                                        if (!isLogged) {
+                                                            pendingNoExpiryCategory = candidate
+                                                            showNoExpiryConfirmDialog = true
+                                                        }
+                                                    }, enabled = !isLogged, modifier = Modifier.fillMaxWidth().height(46.dp),
+                                                        shape = RoundedCornerShape(11.dp),
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = if (isLogged) Color(0xFFDCFCE7) else Color(0xFFF0FDF4),
+                                                            disabledContainerColor = Color(0xFFDCFCE7),
+                                                            contentColor = Color(0xFF15803D), disabledContentColor = Color(0xFF15803D)
+                                                        )) {
+                                                        Text(if (isLogged) "✓  No Expiry Logged · $candidate" else "◉  No Expiry · $candidate", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    }
                                                 }
+                                            }
+                                        }
+                                    }
+                                    TextButton(onClick = {
+                                        showReturnRules = true
+                                        if (returnRules.isEmpty() && !returnRulesLoading) scope.launch {
+                                            returnRulesLoading = true
+                                            try { returnRules = syncRepository.fetchReturnRules() }
+                                            catch (error: Exception) { returnRulesError = error.message ?: "Could not load rules." }
+                                            finally { returnRulesLoading = false }
+                                        }
+                                    }, modifier = Modifier.align(androidx.compose.ui.Alignment.End)) { Text("ⓘ Return Rules", color = Color(0xFFC62828), fontWeight = FontWeight.Bold) }
+                                }
+                                if (showReturnRules) {
+                                    val categoryRules = todaySchedule.flatMap { row -> scheduleMasterCategoryKeys(row).mapNotNull { key -> categoryRuleFor(key, returnRules)?.let { Triple(it.matchValue, it, maxOf(it.returnDays, row.cycleDays)) } } }.distinctBy { normalizedRuleName(it.first) }
+                                    val brandRules = returnRules.filter { it.ruleType == "brand" }.sortedByDescending { it.priority }
+                                    AlertDialog(onDismissRequest = { showReturnRules = false }, title = { Text("Return Rules") },
+                                        text = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                            Text("TODAY'S SCHEDULED CATEGORIES", color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
+                                            if (returnRulesLoading) Text("Loading rules…") else categoryRules.forEach { (n, rule, effective) -> Text("$n  ·  ${maxOf(rule.returnDays, effective)} days") }
+                                            Divider(); Text("BRAND RULES", color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
+                                            brandRules.forEach { Text("${it.matchValue}: ${it.returnDays} days") }
+                                        } }, confirmButton = { TextButton(onClick = { showReturnRules = false }) { Text("CLOSE") } })
+                                }
+                            }
+
+                            AppScreen.Lookup -> {
+                                val uniqueCategoryProducts = remember(todayCategoryProducts) { todayCategoryProducts.distinctBy { it.skuName.trim().lowercase() } }
+                                val activeSlot = todaySchedule.firstOrNull { it.baseCategory.equals(lookupCategoryFilter, true) }
+                                val categoryProducts = if (lookupCategoryFilter == "ALL") uniqueCategoryProducts else {
+                                    val keys = activeSlot?.let(::scheduleMasterCategoryKeys)?.map(::normalizedRuleName)?.toSet() ?: setOf(normalizedRuleName(lookupCategoryFilter))
+                                    uniqueCategoryProducts.filter { normalizedRuleName(it.category.orEmpty()) in keys }
+                                }
+                                val filteredCategoryProducts = remember(categoryProducts, lookupQuery) {
+                                    if (lookupQuery.isBlank()) categoryProducts else categoryProducts.filter { p ->
+                                        p.skuName.contains(lookupQuery, true) || p.skuCode.contains(lookupQuery, true) || p.scanCode.contains(lookupQuery, true)
+                                    }
+                                }
+                                Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text("SKU Lookup", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                                        Text("◷  Scheduled for ${currentSessionDate.format(DateTimeFormatter.ofPattern("dd MMM yyyy", java.util.Locale.ENGLISH))}", fontSize = 12.sp, color = Color(0xFF64748B))
+                                    }
+                                    Text("${filteredCategoryProducts.size} SKUs in today's schedule", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF334155))
+                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                        Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                                if (todaySchedule.size > 1) {
+                                                    FilterChip(selected = lookupCategoryFilter == "ALL", onClick = { lookupCategoryFilter = "ALL" }, label = { Text("All Today (${uniqueCategoryProducts.size})") }, shape = RoundedCornerShape(11.dp))
+                                                }
+                                                todaySchedule.forEach { slot ->
+                                                    val keys = scheduleMasterCategoryKeys(slot).map(::normalizedRuleName).toSet()
+                                                    val count = uniqueCategoryProducts.count { normalizedRuleName(it.category.orEmpty()) in keys }
+                                                    FilterChip(selected = lookupCategoryFilter == slot.baseCategory, onClick = { lookupCategoryFilter = slot.baseCategory }, label = { Text("${slot.baseCategory} ($count)", maxLines = 1) }, shape = RoundedCornerShape(11.dp))
+                                                }
+                                            }
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                OutlinedTextField(value = lookupQuery, onValueChange = { lookupQuery = it; selectedLookupProduct = null },
+                                                    modifier = Modifier.weight(1f), singleLine = true,
+                                                    placeholder = { Text("Search today's SKUs by name, SkuCode, or EAN…", fontSize = 12.sp) },
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFC62828), unfocusedBorderColor = Color(0xFFCBD5E1), focusedContainerColor = Color.White, unfocusedContainerColor = Color(0xFFF8FAFC)))
+                                                Button(onClick = {
+                                                    GmsBarcodeScanning.getClient(this@MainActivity).startScan().addOnSuccessListener { it.rawValue?.let { value -> lookupQuery = value } }
+                                                        .addOnCanceledListener { lookupMessage = "Scan cancelled" }
+                                                        .addOnFailureListener { lookupMessage = it.message ?: "Scanner error" }
+                                                }, modifier = Modifier.size(50.dp), contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))) { Text("▦", fontSize = 22.sp) }
+                                            }
+                                        }
+                                    }
+                                    if (filteredCategoryProducts.isEmpty()) {
+                                        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                                            Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                                                Text(if (todayCategoryProducts.isEmpty()) "No categories scheduled today" else "No matching SKUs in today's schedule", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                                Text("Try a different SkuCode, EAN, or product name.", fontSize = 12.sp, color = Color(0xFF64748B))
+                                            }
+                                        }
+                                    } else {
+                                        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                                            items(filteredCategoryProducts.take(120), key = { "lookup-${it.rowId}" }) { product ->
+                                                Card(onClick = { selectedLookupProduct = product }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(0.dp),
+                                                    colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                                                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                            Text(product.skuName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), maxLines = 2)
+                                                            Text("SKU ${product.skuCode}  ·  EAN ${product.scanCode.ifBlank { "—" }}  ·  ${product.category.orEmpty()}", fontSize = 11.sp, color = Color(0xFF64748B), maxLines = 2)
+                                                        }
+                                                        Text("›", fontSize = 25.sp, color = Color(0xFF94A3B8))
+                                                    }
+                                                }
+                                                Divider(color = Color(0xFFF1F5F9))
+                                            }
+                                        }
+                                    }
+                                }
+                                if (selectedLookupProduct != null) {
+                                    val product = selectedLookupProduct!!
+                                    Dialog(onDismissRequest = { selectedLookupProduct = null }) {
+                                        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                                            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.Top) {
+                                                    Column(Modifier.weight(1f)) {
+                                                        Text(product.category.orEmpty(), color = Color(0xFFC62828), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                        Text(product.skuName, color = Color(0xFF0F172A), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                                                    }
+                                                    TextButton(onClick = { selectedLookupProduct = null }) { Text("✕", color = Color(0xFF334155)) }
+                                                }
+                                                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                                                    Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC))) { Column(Modifier.padding(11.dp)) { Text("SkuCode", fontSize = 10.sp, color = Color(0xFF64748B)); Text(product.skuCode, fontSize = 13.sp, fontWeight = FontWeight.Bold) } }
+                                                    Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC))) { Column(Modifier.padding(11.dp)) { Text("EAN Barcode", fontSize = 10.sp, color = Color(0xFF64748B)); Text(product.scanCode.ifBlank { "Use SkuCode" }, fontSize = 12.sp, fontWeight = FontWeight.Bold) } }
+                                                }
+                                                Button(onClick = { code = product.scanCode.ifBlank { product.skuCode }; selectedLookupProduct = null; screen = AppScreen.Scan }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))) { Text("Enter Qty & Expiry Date", fontWeight = FontWeight.Bold) }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            AppScreen.History -> {
+                                val pendingCount = currentSessionEntries.count { it.syncStatus.equals("PENDING", true) }
+                                val filterCounts = listOf(
+                                    "ALL" to currentSessionEntries.size,
+                                    "EXPIRY" to currentSessionEntries.count { it.expiry.equals("YES", true) },
+                                    "NO EXPIRY" to currentSessionEntries.count { it.expiry.equals("NO EXPIRY", true) },
+                                    "PENDING" to pendingCount,
+                                    "SYNCED" to currentSessionEntries.count { it.syncStatus.equals("SYNCED", true) }
+                                )
+                                val filteredHistory = currentSessionEntries.filter { item ->
+                                    val filterOk = when (historyFilter) {
+                                        "EXPIRY" -> item.expiry.equals("YES", true)
+                                        "NO EXPIRY" -> item.expiry.equals("NO EXPIRY", true)
+                                        "PENDING" -> item.syncStatus.equals("PENDING", true)
+                                        "SYNCED" -> item.syncStatus.equals("SYNCED", true)
+                                        else -> true
+                                    }
+                                    val q = historySearch.trim()
+                                    filterOk && (q.isBlank() || listOf(item.productName, item.skuCode, item.scannedCode, item.category, item.noExpiryCategory).any { it.contains(q, true) })
+                                }.let { list ->
+                                    if (historySoonestFirst) list.sortedBy { item -> if (item.expiry.equals("NO EXPIRY", true)) LocalDate.MAX else runCatching { LocalDate.parse(item.expiryDate) }.getOrDefault(LocalDate.MAX) }
+                                    else list.sortedByDescending { it.createdAt }
+                                }
+                                Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text("Expiry History", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                                            Text("$store · ${currentSessionEntries.size} ${if (currentSessionEntries.size == 1) "entry" else "entries"} logged", fontSize = 12.sp, color = Color(0xFF64748B))
+                                        }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                            TextButton(onClick = { historySoonestFirst = !historySoonestFirst }) { Text(if (historySoonestFirst) "Soonest" else "Latest", color = Color(0xFF334155), fontSize = 11.sp) }
+                                            TextButton(onClick = { shareCsv(filteredHistory) }, enabled = filteredHistory.isNotEmpty()) { Text("Export CSV", color = Color(0xFF334155), fontSize = 11.sp) }
+                                        }
+                                    }
+                                    if (pendingCount > 0) {
+                                        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFCD34D))) {
+                                            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("$pendingCount pending ${if (pendingCount == 1) "record" else "records"} ready to sync", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF92400E))
+                                                    Text("$store · Upload local entries to cloud storage", fontSize = 11.sp, color = Color(0xFFB45309))
+                                                }
+                                                Button(onClick = { if (!isUploading) scope.launch { isUploading = true; try { uploadMessage = syncRepository.uploadPendingEntries().message } catch (e: Exception) { uploadMessage = e.message ?: "Upload failed" } finally { isUploading = false } } }, enabled = !isUploading, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)), shape = RoundedCornerShape(11.dp)) { Text(if (isUploading) "Syncing" else "Sync All", fontSize = 11.sp) }
+                                            }
+                                        }
+                                    }
+                                    if (currentSessionEntries.isNotEmpty()) {
+                                        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                                OutlinedTextField(value = historySearch, onValueChange = { historySearch = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                                                    placeholder = { Text("Filter by SKU, EAN, product name, or category…", fontSize = 12.sp) }, shape = RoundedCornerShape(11.dp),
+                                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFC62828), unfocusedBorderColor = Color(0xFFCBD5E1), focusedContainerColor = Color.White, unfocusedContainerColor = Color(0xFFF8FAFC)))
+                                                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    filterCounts.forEach { (key, count) ->
+                                                        FilterChip(selected = historyFilter == key, onClick = { historyFilter = key }, label = { Text("${if (key == "ALL") "All" else key.lowercase().replaceFirstChar { it.uppercase() }} ($count)", fontSize = 10.sp, maxLines = 1) }, shape = RoundedCornerShape(9.dp))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (filteredHistory.isEmpty()) {
+                                        Card(Modifier.fillMaxWidth().weight(1f), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                                            Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                                Text(if (currentSessionEntries.isEmpty()) "No expiry entries for $store yet" else "No matching records", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                                Text(if (currentSessionEntries.isEmpty()) "Scan an EAN or enter a SkuCode to record expiring stock." else "Try clearing your search or switching filter tabs.", fontSize = 12.sp, color = Color(0xFF64748B))
+                                                if (currentSessionEntries.isEmpty()) Button(onClick = { screen = AppScreen.Scan }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))) { Text("Start Scanning") }
+                                            }
+                                        }
+                                    } else {
+                                        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                                            items(filteredHistory, key = { it.id }) { item ->
+                                                val noExpiry = item.expiry.equals("NO EXPIRY", true)
+                                                val pending = item.syncStatus.equals("PENDING", true)
+                                                Card(onClick = { selectedHistoryEntry = item }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(0.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                                                    Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 13.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                            Text(if (noExpiry) "${item.noExpiryCategory} — No Expiring Stock" else item.productName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), maxLines = 2)
+                                                            Text(if (noExpiry) "No Expiry  ·  ${item.noExpiryCategory}" else "${item.expiryDate}  ·  SKU ${item.skuCode}", fontSize = 11.sp, color = if (noExpiry) Color(0xFF15803D) else Color(0xFF334155))
+                                                            Text("${item.category}  ·  ${item.createdAt.take(16).replace('T', ' ')}  ·  ${if (pending) "Pending" else "Synced"}", fontSize = 10.sp, color = if (pending) Color(0xFFB45309) else Color(0xFF15803D), maxLines = 2)
+                                                        }
+                                                        if (!noExpiry) Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                                                            Text("Qty ${item.quantity}", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                                                            Text(item.expiryDate, fontSize = 10.sp, color = Color(0xFF475569))
+                                                        }
+                                                    }
+                                                }
+                                                Divider(color = Color(0xFFF1F5F9))
+                                            }
+                                        }
+                                    }
+                                }
+                                if (selectedHistoryEntry != null) {
+                                    val item = selectedHistoryEntry!!
+                                    val noExpiry = item.expiry.equals("NO EXPIRY", true)
+                                    Dialog(onDismissRequest = { selectedHistoryEntry = null }) {
+                                        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                                            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                    Column(Modifier.weight(1f)) {
+                                                        Text(if (noExpiry) "No Expiry Category" else item.category, color = if (noExpiry) Color(0xFF15803D) else Color(0xFFC62828), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        Text(if (noExpiry) item.noExpiryCategory else item.productName, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                                                    }
+                                                    TextButton(onClick = { selectedHistoryEntry = null }) { Text("✕") }
+                                                }
+                                                Text("Branch  ·  ${item.store}", fontSize = 12.sp, color = Color(0xFF475569))
+                                                Text("Logged  ·  ${item.createdAt}", fontSize = 12.sp, color = Color(0xFF475569))
+                                                if (!noExpiry) {
+                                                    Text("Quantity  ·  ${item.quantity}", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                    Text("Expiry Date  ·  ${item.expiryDate}", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                    Text("SkuCode  ·  ${item.skuCode}", fontSize = 12.sp)
+                                                    Text("EAN / Scanned  ·  ${item.scannedCode}", fontSize = 12.sp)
+                                                } else {
+                                                    Text("Category ${item.noExpiryCategory} verified clear with no expiring items.", color = Color(0xFF15803D), fontSize = 12.sp)
+                                                }
+                                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    if (!noExpiry) OutlinedButton(onClick = { code = item.scannedCode.ifBlank { item.skuCode }; selectedHistoryEntry = null; screen = AppScreen.Scan }, modifier = Modifier.weight(1f)) { Text("Scan Again") }
+                                                    if (item.syncStatus.equals("PENDING", true)) Button(onClick = { pendingDelete = item; selectedHistoryEntry = null }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF991B1B))) { Text("Delete") }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            AppScreen.Settings -> {
+                                Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 14.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text("Settings", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                                        Text("Store branch lock, today's scheduled categories, and local Master storage", fontSize = 12.sp, color = Color(0xFF64748B))
+                                    }
+                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                                Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFFEE2E2)) { Text("⌂", Modifier.padding(10.dp), color = Color(0xFFC62828), fontSize = 19.sp) }
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("Active Store Branch", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                                    Text("Manual entry · PIN-protected to prevent accidental branch changes", fontSize = 11.sp, color = Color(0xFF64748B))
+                                                }
+                                                Text("🔒 PIN Locked", fontSize = 10.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Bold)
+                                            }
+                                            Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF8FAFC), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                                Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                    Column(Modifier.weight(1f)) {
+                                                        Text("Current Branch Location", fontSize = 11.sp, color = Color(0xFF64748B))
+                                                        Text(store.ifBlank { "Not Configured" }, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                                                    }
+                                                    Button(onClick = { storePinInput = ""; storePinError = ""; showStorePinDialog = true }, shape = RoundedCornerShape(11.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155))) { Text("Change Branch", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF1F5F9)) { Text("▦", Modifier.padding(10.dp), color = Color(0xFF334155), fontSize = 18.sp) }
+                                                Spacer(Modifier.width(10.dp))
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("Today's Scheduled Categories", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                                    Text("Loaded automatically from the project schedule · ${currentSessionDate.format(DateTimeFormatter.ofPattern("dd MMM yyyy", java.util.Locale.ENGLISH))}", fontSize = 11.sp, color = Color(0xFF64748B))
+                                                }
+                                                Text("Read-only", fontSize = 10.sp, color = Color(0xFF64748B))
+                                            }
+                                            Divider(color = Color(0xFFE2E8F0))
+                                            todaySchedule.forEach { slot ->
+                                                val keys = scheduleMasterCategoryKeys(slot).map(::normalizedRuleName).toSet()
+                                                val count = todayCategoryProducts.count { normalizedRuleName(it.category.orEmpty()) in keys }
+                                                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                    Column(Modifier.weight(1f)) {
+                                                        Text(slot.baseCategory, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                                        Text("${slot.cycleDays}-day cycle", fontSize = 11.sp, color = Color(0xFF64748B))
+                                                    }
+                                                    Text("$count SKUs", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF334155))
+                                                }
+                                                Divider(color = Color(0xFFF1F5F9))
+                                            }
+                                            if (todaySchedule.isEmpty()) Text("No categories scheduled today.", fontSize = 12.sp, color = Color(0xFF64748B))
+                                        }
+                                    }
+                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFDCFCE7)) { Text("▤", Modifier.padding(10.dp), color = Color(0xFF15803D), fontSize = 18.sp) }
+                                                Spacer(Modifier.width(10.dp))
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("SKU Master (Local Device Storage)", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                                    Text("Stored locally for instant offline EAN & SkuCode lookup", fontSize = 11.sp, color = Color(0xFF64748B))
+                                                }
+                                            }
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                listOf("Local SKUs" to masterSkuCount.toString(), "Mapped EANs" to "—", "Return Rules" to returnRules.size.toString()).forEach { (label, value) ->
+                                                    Card(Modifier.weight(1f), shape = RoundedCornerShape(11.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                                        Column(Modifier.padding(9.dp)) { Text(label, fontSize = 9.sp, color = Color(0xFF64748B), maxLines = 1); Text(value, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A)) }
+                                                    }
+                                                }
+                                            }
+                                            Surface(shape = RoundedCornerShape(9.dp), color = Color(0xFFFEE2E2), modifier = Modifier.fillMaxWidth()) {
+                                                Text(lastMasterSyncLabel, Modifier.padding(horizontal = 11.dp, vertical = 10.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC62828))
+                                            }
+                                            Text("Product master data is stored locally on this device. Expiry entries remain on the device until uploaded.", fontSize = 11.sp, color = Color(0xFF64748B))
+                                            Text(syncMessage, fontSize = 11.sp, color = Color(0xFF475569))
+                                            if (isSyncing || syncTotal > 0) {
+                                                val progress = if (syncTotal > 0) (syncCompleted.toFloat() / syncTotal.toFloat()).coerceIn(0f, 1f) else 0f
+                                                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth(), color = Color(0xFFC62828))
+                                                Text(if (syncTotal > 0) "$syncPhase: ${syncCompleted.coerceAtMost(syncTotal)} / $syncTotal rows · ${(progress * 100).toInt()}%" else syncPhase, fontSize = 10.sp, color = Color(0xFF64748B))
+                                            }
+                                            Button(onClick = {
+                                                if (!isSyncing) scope.launch {
+                                                    isSyncing = true; syncCompleted = 0; syncTotal = 0; syncPhase = "Connecting to Supabase…"; syncMessage = "Importing product master… expiry entries stay on this device."
+                                                    try {
+                                                        val result = syncRepository.sync { progress -> syncCompleted = progress.completed; syncTotal = progress.total; syncPhase = progress.phase }
+                                                        syncMessage = result.message
+                                                        val completedAt = LocalDateTime.now(IndiaZone).toString(); prefs.edit().putString("master_last_sync", completedAt).apply(); lastMasterSync = completedAt
+                                                        syncPhase = "Complete"; syncCompleted = result.productsUpdated; syncTotal = result.productsUpdated; masterSkuCount = runCatching { dao.activeProductCount() }.getOrDefault(masterSkuCount)
+                                                    } catch (error: Exception) { syncMessage = error.message ?: "Sync failed. Check internet and Supabase configuration."; syncPhase = "Sync failed" }
+                                                    finally { isSyncing = false }
+                                                }
+                                            }, enabled = !isSyncing && !syncCooldownActive, modifier = Modifier.fillMaxWidth().height(46.dp), shape = RoundedCornerShape(11.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155))) {
+                                                Text(when { isSyncing -> "SYNCING…"; syncCooldownActive -> "SYNC LOCKED"; else -> "SYNC MASTER FROM SUPABASE" }, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            if (syncCooldownActive) Text(syncCooldownLabel, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                                        }
+                                    }
+                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text("Scanner Preferences", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("Scanner Beep & Confirm Tone", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF0F172A))
+                                                    Text("Play acoustic feedback on barcode capture and entry save", fontSize = 11.sp, color = Color(0xFF64748B))
+                                                }
+                                                Switch(checked = audioFeedbackEnabled, onCheckedChange = {
+                                                    audioFeedbackEnabled = it; prefs.edit().putBoolean("audio_feedback_enabled", it).apply()
+                                                })
+                                            }
+                                        }
+                                    }
+                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text("App Updates", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                            Text("Check for the latest version of MahaMart Expiry Manager.", fontSize = 11.sp, color = Color(0xFF64748B))
+                                            OutlinedButton(onClick = {
+                                                scope.launch {
+                                                    updateChecking = true; updateStatus = "Checking GitHub for the latest release…"; updateInfo = null; downloadedUpdateApk = null; updateDialogOpen = false
+                                                    try { updateInfo = AppUpdateManager.checkForUpdate(); if (updateInfo != null) { updateStatus = "Version ${updateInfo!!.versionName} is available."; updateDialogOpen = true } else Toast.makeText(this@MainActivity, "This app is already up to date.", Toast.LENGTH_SHORT).show() }
+                                                    catch (error: Exception) { Toast.makeText(this@MainActivity, error.message ?: "Could not check for updates.", Toast.LENGTH_LONG).show() }
+                                                    finally { updateChecking = false }
+                                                }
+                                            }, enabled = !updateChecking, modifier = Modifier.fillMaxWidth().height(46.dp), shape = RoundedCornerShape(11.dp)) {
+                                                Text(if (updateChecking) "CHECKING FOR UPDATES…" else "CHECK FOR APP UPDATES", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
