@@ -838,7 +838,7 @@ class MainActivity : ComponentActivity() {
                                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
                                 ) {
                                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                                                Text("NO EXPIRY CONFIRMATION", color = RetailSlate, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                                                                Text("TODAY'S SCHEDULED CATEGORIES · MARK NO EXPIRY", color = RetailInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                         if (scheduledSupabaseCategories.isEmpty()) {
                                             Text("Sync the product master to load today's scheduled categories.", color = RetailSlate, fontSize = 12.sp)
                                         } else {
@@ -873,7 +873,7 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                         }
-Text("TODAY'S SCHEDULE", color = RetailInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+Text("CATEGORY SCHEDULE", color = RetailSlate, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                                                 Column(
                                                 Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp),
                                                 verticalArrangement = Arrangement.spacedBy(3.dp)
