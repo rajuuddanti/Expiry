@@ -1,16 +1,24 @@
 package com.mahalaxmi.expiry
 
 import android.os.Bundle
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.widget.Toast
 import android.content.Intent
 import androidx.core.content.FileProvider
 import java.io.File
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,12 +44,14 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private val MahalaxmiRed = Color(0xFFC62828)
+private val MahalaxmiRed = Color(0xFFB71C1C)
 private val IndiaZone = ZoneId.of("Asia/Kolkata")
 private enum class AppScreen { Scan, Lookup, History, Settings }
 
@@ -62,13 +72,11 @@ private fun loadInspectionSchedule(activity: ComponentActivity): List<Inspection
     }
 }.getOrDefault(emptyList())
 
-/** Keeps the supplied calendar unchanged; beyond its end, continue each category's last cycle,
- * assigning at most two categories per day and rolling overdue categories forward in due-date order. */
+/** Preserve the supplied calendar. Beyond its end, continue category cycles, at most two per day. */
 private fun scheduledRowsForDate(source: List<InspectionScheduleRow>, target: LocalDate): List<InspectionScheduleRow> {
     if (source.isEmpty()) return emptyList()
     val exact = source.filter { it.date == target }
     if (exact.isNotEmpty() || target <= source.maxOf { it.date }) return exact
-
     data class CycleState(val category: String, val cycleDays: Int, var nextDue: LocalDate)
     val latest = source.groupBy { it.baseCategory }.mapNotNull { (_, rows) ->
         val last = rows.maxByOrNull { it.date } ?: return@mapNotNull null
@@ -78,8 +86,7 @@ private fun scheduledRowsForDate(source: List<InspectionScheduleRow>, target: Lo
     var result = emptyList<InspectionScheduleRow>()
     while (day <= target) {
         val due = latest.filter { !it.nextDue.isAfter(day) }
-            .sortedWith(compareBy<CycleState> { it.nextDue }.thenBy { it.category })
-            .take(2)
+            .sortedWith(compareBy<CycleState> { it.nextDue }.thenBy { it.category }).take(2)
         result = due.map { InspectionScheduleRow(day, it.category, it.cycleDays) }
         due.forEach { it.nextDue = day.plusDays(it.cycleDays.toLong()) }
         day = day.plusDays(1)
@@ -87,18 +94,97 @@ private fun scheduledRowsForDate(source: List<InspectionScheduleRow>, target: Lo
     return result
 }
 
-private fun normalizedRuleName(value: String): String =
-    value.uppercase().filter { it.isLetterOrDigit() }
+private fun normalizedRuleName(value: String): String = value.uppercase().filter { it.isLetterOrDigit() }
 
-private fun categoryRuleFor(category: String, rules: List<SupabaseSyncRepository.ReturnRule>): SupabaseSyncRepository.ReturnRule? {
-    val key = normalizedRuleName(category.substringBefore("("))
-    return rules.filter { it.ruleType == "category" }.firstOrNull {
-        val ruleKey = normalizedRuleName(it.matchValue)
-        key.contains(ruleKey) || ruleKey.contains(key)
+private fun masterCategoryAliases(value: String): List<String> {
+    val key = normalizedRuleName(value)
+    return when (key) {
+        "CHOCOLATES", "CHOCLATES" -> listOf("CHOCLATES", "CHOCOLATES")
+        "DEOSANDSPRAYS" -> listOf("DEOS  AND SPRAYS")
+        "HEALTHANDOTC" -> listOf("HEALTH  AND  OTC")
+        "HOUSEANDKITCHENCLEANING" -> listOf("HOUSE  AND  KITCHEN CLEANING")
+        "JAMSANDSAUCES" -> listOf("JAMS  AND  SAUCES")
+        "NOODLESANDPASTA" -> listOf("NOODLES  AND  PASTA")
+        "DAIRYFOODS" -> listOf("DAIRY FOODS", "GHEES")
+        else -> listOf(value.trim())
     }
 }
 
+private fun scheduleMasterCategoryKeys(row: InspectionScheduleRow): List<String> {
+    val base = row.category.substringBefore("(").trim()
+    return base.split("/", "&").flatMap(::masterCategoryAliases).distinctBy { normalizedRuleName(it) }
+}
+
+private fun categoryRuleFor(category: String, rules: List<SupabaseSyncRepository.ReturnRule>): SupabaseSyncRepository.ReturnRule? {
+    val categoryRules = rules.filter { it.ruleType == "category" }
+    val categoryKey = normalizedRuleName(category)
+
+    // Return-day rules always belong to the exact category. In particular,
+    // DAIRY FOODS and GHEES must never borrow each other's return-day values.
+    val exactMatch = categoryRules.firstOrNull {
+        normalizedRuleName(it.matchValue) == categoryKey
+    }
+    if (exactMatch != null) return exactMatch
+
+    // The only return-rule spelling fallback is the known MASTER typo:
+    // CHOCOLATES in the schedule may be stored as CHOCLATES in MASTER/rules.
+    // BISCUITS, DAIRY FOODS and GHEES always require their own exact rules.
+    val isChocolateSpelling = categoryKey == "CHOCOLATES" || categoryKey == "CHOCLATES"
+    if (!isChocolateSpelling) return null
+
+    return categoryRules.firstOrNull {
+        val ruleKey = normalizedRuleName(it.matchValue)
+        ruleKey == "CHOCOLATES" || ruleKey == "CHOCLATES"
+    }
+}
+
+private fun scheduleRowForMasterCategory(
+    category: String,
+    rows: List<InspectionScheduleRow>
+): InspectionScheduleRow? {
+    val key = normalizedRuleName(category)
+    return rows.firstOrNull { row -> scheduleMasterCategoryKeys(row).any { normalizedRuleName(it) == key } }
+}
+
 class MainActivity : ComponentActivity() {
+    private var feedbackToneGenerator: ToneGenerator? = null
+
+    private fun vibrateFeedback(durationMs: Long = 90L) {
+        val vibrator = getSystemService(Vibrator::class.java) ?: return
+        if (!vibrator.hasVibrator()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(durationMs)
+        }
+    }
+
+    private fun playFeedbackTone(tone: Int) {
+        if (!getSharedPreferences("expiry_manager", MODE_PRIVATE).getBoolean("audio_feedback_enabled", true)) return
+        runCatching {
+            val generator = feedbackToneGenerator ?: ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
+                .also { feedbackToneGenerator = it }
+            generator.startTone(tone, 180)
+        }
+    }
+
+    private fun blockedEntryFeedback() {
+        playFeedbackTone(ToneGenerator.TONE_PROP_NACK)
+        vibrateFeedback(180L)
+    }
+
+    private fun deleteEntryFeedback() {
+        playFeedbackTone(ToneGenerator.TONE_SUP_ERROR)
+        vibrateFeedback(220L)
+    }
+
+    override fun onDestroy() {
+        feedbackToneGenerator?.release()
+        feedbackToneGenerator = null
+        super.onDestroy()
+    }
+
     private var scannedValue by mutableStateOf("")
     private fun shareCsv(entries: List<ExpiryEntryEntity>) {
         fun escape(value: String): String = "\"" + value.replace("\"", "\"\"").replace("\\n", " ") + "\""
@@ -172,7 +258,6 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            MahaMartRetailTheme {
             val scope = rememberCoroutineScope()
             val entries by dao.observeEntries().collectAsState(initial = emptyList())
             val currentSessionDate = run {
@@ -194,6 +279,39 @@ class MainActivity : ComponentActivity() {
             }
             val syncRepository = remember { SupabaseSyncRepository(applicationContext, dao) }
             var syncMessage by remember { mutableStateOf("Not synced yet") }
+            var lastMasterSync by remember { mutableStateOf(prefs.getString("master_last_sync", null)) }
+            var cooldownClock by remember { mutableStateOf(LocalDateTime.now(IndiaZone)) }
+            LaunchedEffect(lastMasterSync) {
+                while (true) {
+                    cooldownClock = LocalDateTime.now(IndiaZone)
+                    delay(60_000L)
+                }
+            }
+            val syncUnlockAt = remember(lastMasterSync) {
+                lastMasterSync?.let { value ->
+                    runCatching { LocalDateTime.parse(value).plusDays(20) }.getOrNull()
+                }
+            }
+            val syncCooldownActive = syncUnlockAt?.isAfter(cooldownClock) == true
+            val syncCooldownLabel = remember(syncUnlockAt, cooldownClock) {
+                val unlockAt = syncUnlockAt
+                if (unlockAt == null || !unlockAt.isAfter(cooldownClock)) "" else {
+                    val remaining = Duration.between(cooldownClock, unlockAt)
+                    val days = remaining.toDays()
+                    val hours = remaining.minusDays(days).toHours()
+                    "SYNC AVAILABLE IN " + days + "D " + hours + "H"
+                }
+            }
+            val lastMasterSyncLabel = remember(lastMasterSync) {
+                val syncedAt = lastMasterSync?.let { runCatching { LocalDateTime.parse(it) }.getOrNull() }
+                if (syncedAt == null) {
+                    "NOT YET SYNCED"
+                } else {
+                    "LAST SYNCED: " + syncedAt.atZone(IndiaZone)
+                        .format(DateTimeFormatter.ofPattern("d MMM yyyy - h:mm a", java.util.Locale.ENGLISH))
+                        .uppercase(java.util.Locale.ENGLISH)
+                }
+            }
             var isSyncing by remember { mutableStateOf(false) }
             var syncCompleted by remember { mutableIntStateOf(0) }
             var syncTotal by remember { mutableIntStateOf(0) }
@@ -221,6 +339,14 @@ class MainActivity : ComponentActivity() {
             var expiry by remember { mutableStateOf(LocalDate.now(IndiaZone).format(DateTimeFormatter.ISO_DATE)) }
             var message by remember { mutableStateOf("") }
             var lookupQuery by remember { mutableStateOf("") }
+            var lookupCategoryFilter by remember { mutableStateOf("ALL") }
+            var historySearch by remember { mutableStateOf("") }
+            var historyFilter by remember { mutableStateOf("ALL") }
+            var historySoonestFirst by remember { mutableStateOf(false) }
+            var selectedHistoryEntry by remember { mutableStateOf<ExpiryEntryEntity?>(null) }
+            var masterSkuCount by remember { mutableIntStateOf(0) }
+            var audioFeedbackEnabled by remember { mutableStateOf(prefs.getBoolean("audio_feedback_enabled", true)) }
+            var selectedLookupProduct by remember { mutableStateOf<com.mahalaxmi.expiry.data.ProductMasterEntity?>(null) }
             var lookupResults by remember { mutableStateOf(emptyList<com.mahalaxmi.expiry.data.ProductMasterEntity>()) }
             var todayCategoryProducts by remember { mutableStateOf(emptyList<com.mahalaxmi.expiry.data.ProductMasterEntity>()) }
             var pendingDelete by remember { mutableStateOf<ExpiryEntryEntity?>(null) }
@@ -229,19 +355,42 @@ class MainActivity : ComponentActivity() {
             var returnRules by remember { mutableStateOf(emptyList<SupabaseSyncRepository.ReturnRule>()) }
             var returnRulesLoading by remember { mutableStateOf(false) }
             var returnRulesError by remember { mutableStateOf("") }
+            var updateInfo by remember { mutableStateOf<AppUpdate?>(null) }
+            var updateDialogOpen by remember { mutableStateOf(false) }
+            var updateChecking by remember { mutableStateOf(false) }
+            var updateDownloading by remember { mutableStateOf(false) }
+            var updateProgress by remember { mutableIntStateOf(0) }
+            var updateStatus by remember { mutableStateOf("Check whether a newer app version is available.") }
+            var downloadedUpdateApk by remember { mutableStateOf<File?>(null) }
+            LaunchedEffect(Unit) {
+                masterSkuCount = runCatching { dao.activeProductCount() }.getOrDefault(0)
+            }
+            LaunchedEffect(syncRepository) {
+                runCatching { syncRepository.fetchReturnRules() }
+                    .onSuccess { returnRules = it }
+                    .onFailure { returnRulesError = it.message ?: "Could not load Supabase return rules." }
+            }
+            LaunchedEffect(Unit) {
+                delay(1200L)
+                runCatching { AppUpdateManager.checkForUpdate() }
+                    .onSuccess { available ->
+                        if (available != null) {
+                            updateInfo = available
+                            updateStatus = "Version ${available.versionName} is available."
+                            updateDialogOpen = true
+                        }
+                    }
+            }
+
+            // Daily category assignment comes from the inspection calendar.
+            // Return-day values remain exclusively in Supabase expiry_return_rules.
             val inspectionSchedule = remember { loadInspectionSchedule(this@MainActivity) }
-            // The app's business day rolls over at 3 PM local time, not midnight.
-            // Before 3 PM, category scheduling must still use the previous calendar date.
             val todaySchedule = remember(currentSessionDate, inspectionSchedule) {
                 scheduledRowsForDate(inspectionSchedule, currentSessionDate)
             }
-
-            // Actual product-master categories represented by today's scheduled rows.
-            // The inspection schedule is capped at two categories per business day.
             val scheduledSupabaseCategories = remember(todayCategoryProducts) {
-                todayCategoryProducts
-                    .mapNotNull { it.category?.trim()?.takeIf { value -> value.isNotBlank() } }
-                    .distinctBy { it.uppercase() }
+                todayCategoryProducts.mapNotNull { it.category?.trim()?.takeIf(String::isNotBlank) }
+                    .distinctBy { normalizedRuleName(it) }
             }
 
             LaunchedEffect(scannedValue) {
@@ -254,12 +403,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            LaunchedEffect(todaySchedule) {
-                val categoryKeys = todaySchedule.flatMap { row ->
-                    listOf(row.category.trim().uppercase(), row.baseCategory.trim().uppercase())
-                }.distinct()
+            LaunchedEffect(todaySchedule, lastMasterSync) {
+                val categoryKeys = todaySchedule.flatMap(::scheduleMasterCategoryKeys)
+                    .distinctBy { normalizedRuleName(it) }
                 todayCategoryProducts = if (categoryKeys.isEmpty()) emptyList() else
-                    runCatching { dao.getProductsForCategories(categoryKeys) }.getOrDefault(emptyList())
+                    runCatching { dao.getProductsForCategories(categoryKeys.map { it.uppercase() }) }
+                        .getOrDefault(emptyList())
             }
 
             LaunchedEffect(code) {
@@ -297,7 +446,10 @@ class MainActivity : ComponentActivity() {
                             !entry.expiry.equals("NO EXPIRY", ignoreCase = true) &&
                             normalizedRuleName(entry.category) == normalizedRuleName(selectedCategory)
                     }
-                    if (existingExpiryEntries.isNotEmpty()) {                        message = "$selectedCategory already has active expiry entries today. Delete them from History before marking NO EXPIRY."                        return@launch                    }
+                    if (existingExpiryEntries.isNotEmpty()) {
+                        message = "$selectedCategory already has active expiry entries today. Delete them from History before marking NO EXPIRY."
+                        return@launch
+                    }
                     if (dao.activeNoExpiryCount(store, session, selectedCategory) > 0) {
                         message = "Already marked NO EXPIRY for $selectedCategory today."
                         return@launch
@@ -354,6 +506,7 @@ class MainActivity : ComponentActivity() {
                             }
                         when {
                             allEntriesBlocked -> {
+                                blockedEntryFeedback()
                                 message = if (scheduledSupabaseCategories.size == 1) {
                                     "NO EXPIRY is already marked for ${scheduledSupabaseCategories.first()}. All expiry entries are blocked for this business day."
                                 } else {
@@ -362,6 +515,7 @@ class MainActivity : ComponentActivity() {
                                 return@launch
                             }
                             entryCategoryIsMarked -> {
+                                blockedEntryFeedback()
                                 message = "NO EXPIRY is already marked for $entryCategory. Entries for this category are blocked today."
                                 return@launch
                             }
@@ -411,7 +565,88 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            if (showStorePinDialog) {
+            MaterialTheme {
+                if (updateDialogOpen) {
+                    val availableUpdate = updateInfo
+                    AlertDialog(
+                        onDismissRequest = { },
+                        title = {
+                            Text(
+                                if (availableUpdate == null) "Update required"
+                                else "Update required • ${availableUpdate.versionName}"
+                            )
+                        },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    when {
+                                        updateDownloading -> "Downloading update… Please wait."
+                                        downloadedUpdateApk != null -> "Download complete. Install the update to continue."
+                                        else -> "A new version is available. Update the app to continue using MahaMart Expiry Manager."
+                                    }
+                                )
+                                if (updateDownloading) {
+                                    LinearProgressIndicator(
+                                        progress = { updateProgress / 100f },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        color = MahalaxmiRed
+                                    )
+                                    Text("$updateProgress% downloaded", fontSize = 12.sp)
+                                }
+                                if (updateStatus.isNotBlank()) {
+                                    Text(updateStatus, fontSize = 12.sp, color = Color.Gray)
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            if (availableUpdate != null && downloadedUpdateApk == null) {
+                                Button(
+                                    enabled = !updateDownloading,
+                                    onClick = {
+                                        scope.launch {
+                                            updateDownloading = true
+                                            updateStatus = "Preparing download…"
+                                            updateProgress = 0
+                                            try {
+                                                downloadedUpdateApk = AppUpdateManager.download(availableUpdate, applicationContext) {
+                                                    updateProgress = it
+                                                }
+                                                updateStatus = "APK downloaded successfully."
+                                            } catch (error: Exception) {
+                                                updateStatus = error.message ?: "Download failed. Tap UPDATE to retry."
+                                            } finally {
+                                                updateDownloading = false
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
+                                ) {
+                                    Text(if (updateDownloading) "DOWNLOADING…" else "UPDATE")
+                                }
+                            } else if (downloadedUpdateApk != null) {
+                                Button(
+                                    onClick = {
+                                        if (AppUpdateManager.canInstallPackages(this@MainActivity)) {
+                                            runCatching {
+                                                AppUpdateManager.install(this@MainActivity, downloadedUpdateApk!!)
+                                            }.onFailure {
+                                                updateStatus = it.message ?: "Could not open Android installer."
+                                            }
+                                        } else {
+                                            updateStatus = "Allow installation for MahaMart Expiry Manager, then return and tap INSTALL UPDATE."
+                                            AppUpdateManager.openInstallPermissionSettings(this@MainActivity)
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
+                                ) {
+                                    Text("INSTALL UPDATE")
+                                }
+                            }
+                        },
+                        dismissButton = null
+                    )
+                }
+                if (showStorePinDialog) {
                     AlertDialog(
                         onDismissRequest = { showStorePinDialog = false; storePinInput = ""; storePinError = "" },
                         title = { Text("Authorize store change") },
@@ -502,7 +737,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 if (categoryMismatchPending) {
-                    val todayCategories = todaySchedule.map { it.baseCategory }.distinct()
+                    val todayCategories = scheduledSupabaseCategories
                     AlertDialog(
                         onDismissRequest = { categoryMismatchPending = false },
                         title = { Text("Category mismatch") },
@@ -531,8 +766,11 @@ class MainActivity : ComponentActivity() {
                             TextButton(onClick = {
                                 val item = pendingDelete
                                 pendingDelete = null
-                                if (item != null) scope.launch {
+                                if (item != null) {
+                                    deleteEntryFeedback()
+                                    scope.launch {
                                     dao.softDeleteEntry(item.id, LocalDateTime.now(IndiaZone).atZone(IndiaZone).toOffsetDateTime().toString())
+                                    }
                                 }
                             }) { Text("DELETE", color = MahalaxmiRed) }
                         },
@@ -541,77 +779,81 @@ class MainActivity : ComponentActivity() {
                 }
                 Scaffold(
                     bottomBar = {
-                        NavigationBar(
-                            containerColor = Color.White,
-                            contentColor = RetailFloorColors.primary,
-                            tonalElevation = 2.dp
+                        Surface(
+                            color = Color.White,
+                            tonalElevation = 0.dp,
+                            shadowElevation = 8.dp,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            NavigationBarItem(
-                                selected = screen == AppScreen.Scan,
-                                onClick = { screen = AppScreen.Scan },
-                                icon = { Text("▣", fontSize = 20.sp) },
-                                label = { Text("Scan") },
-                                colors = NavigationBarItemDefaults.colors(indicatorColor = Color(0xFFFEE2E2), selectedIconColor = RetailFloorColors.primary, selectedTextColor = RetailFloorColors.primary, unselectedIconColor = RetailSlate, unselectedTextColor = RetailSlate)
-                            )
-                            NavigationBarItem(
-                                selected = screen == AppScreen.Lookup,
-                                onClick = { screen = AppScreen.Lookup },
-                                icon = { Text("⌕", fontSize = 20.sp) },
-                                label = { Text("SKU Lookup") },
-                                colors = NavigationBarItemDefaults.colors(indicatorColor = Color(0xFFFEE2E2), selectedIconColor = RetailFloorColors.primary, selectedTextColor = RetailFloorColors.primary, unselectedIconColor = RetailSlate, unselectedTextColor = RetailSlate)
-                            )
-                            NavigationBarItem(
-                                selected = screen == AppScreen.History,
-                                onClick = { screen = AppScreen.History },
-                                icon = { Text("☷", fontSize = 20.sp) },
-                                label = { Text("History") },
-                                colors = NavigationBarItemDefaults.colors(indicatorColor = Color(0xFFFEE2E2), selectedIconColor = RetailFloorColors.primary, selectedTextColor = RetailFloorColors.primary, unselectedIconColor = RetailSlate, unselectedTextColor = RetailSlate)
-                            )
-                            NavigationBarItem(
-                                selected = screen == AppScreen.Settings,
-                                onClick = { screen = AppScreen.Settings },
-                                icon = { Text("⚙", fontSize = 20.sp) },
-                                label = { Text("Settings") },
-                                colors = NavigationBarItemDefaults.colors(indicatorColor = Color(0xFFFEE2E2), selectedIconColor = RetailFloorColors.primary, selectedTextColor = RetailFloorColors.primary, unselectedIconColor = RetailSlate, unselectedTextColor = RetailSlate)
-                            )
+                            Row(
+                                Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 6.dp, vertical = 5.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                            ) {
+                                val navItems = listOf(
+                                    Triple(AppScreen.Scan, "▣", "Scan"),
+                                    Triple(AppScreen.Lookup, "⌕", "SKU Lookup"),
+                                    Triple(AppScreen.History, "☷", "History"),
+                                    Triple(AppScreen.Settings, "⚙", "Settings")
+                                )
+                                navItems.forEach { (destination, glyph, label) ->
+                                    val active = screen == destination
+                                    Column(
+                                        Modifier.weight(1f).fillMaxHeight().clickable { screen = destination },
+                                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(18.dp),
+                                            color = if (active) Color(0xFFFEE2E2) else Color.Transparent
+                                        ) {
+                                            Text(glyph, Modifier.padding(horizontal = 18.dp, vertical = 3.dp), fontSize = 21.sp,
+                                                color = if (active) Color(0xFFC62828) else Color(0xFF64748B))
+                                        }
+                                        Text(label, fontSize = 10.sp, lineHeight = 12.sp,
+                                            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (active) Color(0xFF0F172A) else Color(0xFF64748B), maxLines = 1)
+                                    }
+                                }
+                            }
                         }
                     }
                 ) { padding ->
                     Column(
                         Modifier.fillMaxSize().padding(padding).background(Color(0xFFF8FAFC))
                     ) {
+                        val headerPendingCount = currentSessionEntries.count { it.syncStatus.equals("PENDING", true) }
                         Row(
-                            modifier = Modifier.fillMaxWidth()
-                                .background(Color.White)
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            Modifier.fillMaxWidth().background(Color.White)
+                                .padding(horizontal = 16.dp, vertical = 9.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text("Expiry Manager", color = RetailInk, fontSize = 18.sp, lineHeight = 22.sp, fontWeight = FontWeight.ExtraBold)
-                                Text(store.ifBlank { "Branch Not Set" }, color = RetailSlate, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                                Text("Expiry Manager", fontSize = 16.sp, lineHeight = 19.sp,
+                                    fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                                Text(store.ifBlank { "Branch Not Set" }, fontSize = 11.sp,
+                                    color = Color(0xFF64748B), maxLines = 1)
                             }
-                            val pendingHeaderCount = currentSessionEntries.count { it.syncStatus.equals("PENDING", true) }
                             Surface(
                                 onClick = {
-                                    if (pendingHeaderCount > 0 && !isUploading) {
+                                    if (headerPendingCount > 0 && !isUploading) {
                                         scope.launch {
                                             isUploading = true
                                             try { uploadMessage = syncRepository.uploadPendingEntries().message }
                                             catch (error: Exception) { uploadMessage = error.message ?: "Upload failed; entries remain pending." }
                                             finally { isUploading = false }
                                         }
-                                    } else if (pendingHeaderCount == 0) screen = AppScreen.History
+                                    } else if (headerPendingCount == 0) screen = AppScreen.History
                                 },
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (pendingHeaderCount > 0) Color(0xFFFEF3C7) else Color(0xFFDCFCE7)
+                                color = if (headerPendingCount > 0) Color(0xFFFEF3C7) else Color(0xFFDCFCE7)
                             ) {
                                 Text(
-                                    if (isUploading) "Syncing…" else if (pendingHeaderCount > 0) "$pendingHeaderCount Pending" else "Synced",
-                                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
-                                    color = if (pendingHeaderCount > 0) Color(0xFF92400E) else Color(0xFF15803D),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
+                                    if (isUploading) "Syncing…" else if (headerPendingCount > 0) "$headerPendingCount Pending" else "Synced",
+                                    Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
+                                    color = if (headerPendingCount > 0) Color(0xFF92400E) else Color(0xFF15803D),
+                                    fontSize = 11.sp, fontWeight = FontWeight.Bold
                                 )
                             }
                         }
@@ -619,490 +861,140 @@ class MainActivity : ComponentActivity() {
 
                         when (screen) {
                             AppScreen.Scan -> {
+                                val pendingScanCount = currentSessionEntries.count { it.syncStatus.equals("PENDING", true) }
+                                val loggedNoExpiry = currentSessionEntries.filter {
+                                    it.expiry.equals("NO EXPIRY", true) && it.store.equals(store, true)
+                                }.map { it.noExpiryCategory.trim().uppercase() }.toSet()
                                 Column(
-                                    Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp).verticalScroll(rememberScrollState()),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 14.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(14.dp)
                                 ) {
-                                    if (showReturnRules) {
-                                        val categoryRules = todaySchedule.mapNotNull { row ->
-                                            val rule = categoryRuleFor(row.category, returnRules)
-                                            rule?.let {
-                                                val effective = maxOf(it.returnDays, row.cycleDays)
-                                                Triple(row, it, effective)
-                                            }
-                                        }
-                                        val brandRules = returnRules.filter { it.ruleType == "brand" }
-                                            .sortedByDescending { it.priority }
-                                        AlertDialog(
-                                            onDismissRequest = { showReturnRules = false },
-                                            title = { Text("Return Rules • ${LocalDate.now(IndiaZone)}") },
-                                            text = {
-                                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                    Text("TODAY'S SCHEDULED CATEGORIES", fontWeight = FontWeight.Bold, color = MahalaxmiRed)
-                                                    when {
-                                                        returnRulesLoading -> Text("Loading rules from Supabase…")
-                                                        returnRulesError.isNotBlank() -> Text("Could not load rules: $returnRulesError")
-                                                        todaySchedule.isEmpty() -> Text("No category is scheduled for today.")
-                                                        categoryRules.isEmpty() -> Text("No matching category rules were found for today's schedule.")
-                                                        else -> categoryRules.forEach { (row, rule, effective) ->
-                                                            Column {
-                                                                Text(row.baseCategory, fontWeight = FontWeight.SemiBold)
-                                                                Text("Return days: ${effective} days", fontSize = 13.sp)
-                                                                if (effective != rule.returnDays) {
-                                                                    Text("Configured: ${rule.returnDays} days • Cycle: ${row.cycleDays} days", fontSize = 11.sp, color = Color.Gray)
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                    Divider()
-                                                    Text("BRAND RULES", fontWeight = FontWeight.Bold, color = MahalaxmiRed)
-                                                    if (returnRulesLoading) {
-                                                        Text("Loading brand rules…")
-                                                    } else if (brandRules.isEmpty()) {
-                                                        Text("Himalaya — 60 days\nKellogg's — 30 days", fontSize = 13.sp)
-                                                        Text("Live brand rules could not be confirmed; showing configured defaults.", fontSize = 11.sp, color = Color.Gray)
-                                                    } else {
-                                                        brandRules.forEach { rule ->
-                                                            Text("${rule.matchValue}: ${rule.returnDays} days", fontWeight = FontWeight.SemiBold)
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                            confirmButton = { TextButton(onClick = { showReturnRules = false }) { Text("CLOSE") } }
-                                        )
-                                    }
-                                    val pendingScanCount = currentSessionEntries.count { it.syncStatus.equals("PENDING", true) }
                                     if (pendingScanCount > 0) {
-                                        Card(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            shape = RoundedCornerShape(16.dp),
+                                        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
                                             colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFCD34D))
-                                        ) {
-                                            Row(
-                                                Modifier.fillMaxWidth().padding(12.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                                            ) {
-                                                Column(Modifier.weight(1f)) {
-                                                    Text("$pendingScanCount local entries pending sync", color = Color(0xFF92400E), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFCD34D))) {
+                                            Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                    Text("$pendingScanCount local ${if (pendingScanCount == 1) "entry" else "entries"} pending sync", color = Color(0xFF92400E), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                                     Text("$store · Ready to upload", color = Color(0xFFB45309), fontSize = 11.sp)
                                                 }
-                                                TextButton(
-                                                    onClick = {
-                                                        if (!isUploading) scope.launch {
-                                                            isUploading = true
-                                                            try { uploadMessage = syncRepository.uploadPendingEntries().message }
-                                                            catch (error: Exception) { uploadMessage = error.message ?: "Upload failed; entries remain pending." }
-                                                            finally { isUploading = false }
-                                                        }
-                                                    },
-                                                    enabled = !isUploading
-                                                ) { Text(if (isUploading) "SYNCING…" else "SYNC NOW", color = Color(0xFF92400E), fontWeight = FontWeight.Bold) }
+                                                Button(onClick = {
+                                                    if (!isUploading) scope.launch {
+                                                        isUploading = true
+                                                        try { uploadMessage = syncRepository.uploadPendingEntries().message }
+                                                        catch (error: Exception) { uploadMessage = error.message ?: "Upload failed; entries remain pending." }
+                                                        finally { isUploading = false }
+                                                    }
+                                                }, enabled = !isUploading, shape = RoundedCornerShape(11.dp),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                                                    contentPadding = PaddingValues(horizontal = 13.dp, vertical = 9.dp)) {
+                                                    Text(if (isUploading) "Syncing…" else "Sync Now", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                }
                                             }
                                         }
                                     }
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(16.dp),
+
+                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
                                         colors = CardDefaults.cardColors(containerColor = Color.White),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
-                                    ) {
-                                        Column(
-                                            Modifier.fillMaxWidth().padding(16.dp),
-                                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                                        ) {
-                                            Text("EAN Barcode or SkuCode", color = Color(0xFF334155), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                                    Row(
-                                        Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                                    ) {
-                                        OutlinedTextField(
-                                            value = code, onValueChange = { code = it },
-                                            label = { Text("SKU code / scanned barcode") },
-                                            modifier = Modifier.weight(1f), singleLine = true,
-                                            shape = RoundedCornerShape(12.dp),
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = MahalaxmiRed,
-                                                unfocusedBorderColor = Color(0xFFD0D4D9),
-                                                focusedLabelColor = MahalaxmiRed
-                                            )
-                                        )
-                                        Button(
-                                            onClick = {
-                                                GmsBarcodeScanning.getClient(this@MainActivity)
-                                                    .startScan()
-                                                    .addOnSuccessListener { barcode ->
-                                                        barcode.rawValue?.let { scannedValue = it }
-                                                    }
-                                                    .addOnCanceledListener { message = "Scan cancelled" }
-                                                    .addOnFailureListener { e -> message = "Scanner error: ${e.localizedMessage ?: "Please try again"}" }
-                                            },
-                                            modifier = Modifier.size(width = 56.dp, height = 56.dp),
-                                            contentPadding = PaddingValues(0.dp),
-                                            colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
-                                        ) { Text("📷", fontSize = 24.sp) }
-                                    }
-                                    OutlinedTextField(
-                                        value = name, onValueChange = { },
-                                        label = { Text("Product name (auto-filled)") },
-                                        modifier = Modifier.fillMaxWidth(), singleLine = true,
-                                        readOnly = true,
-                                        shape = RoundedCornerShape(11.dp),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = MahalaxmiRed,
-                                            unfocusedBorderColor = Color(0xFFD0D4D9),
-                                            focusedLabelColor = MahalaxmiRed
-                                        )
-                                    )
-                                    OutlinedTextField(
-                                        value = category, onValueChange = { },
-                                        label = { Text("Category (from product master)") },
-                                        modifier = Modifier.fillMaxWidth(), singleLine = true,
-                                        readOnly = true,
-                                        shape = RoundedCornerShape(11.dp),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = MahalaxmiRed,
-                                            unfocusedBorderColor = Color(0xFFD0D4D9),
-                                            focusedLabelColor = MahalaxmiRed
-                                        )
-                                    )
-                                    OutlinedTextField(
-                                        value = qty, onValueChange = { qty = it.filter(Char::isDigit) },
-                                        label = { Text("Quantity") },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        modifier = Modifier.fillMaxWidth(), singleLine = true,
-                                        shape = RoundedCornerShape(11.dp),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = MahalaxmiRed,
-                                            unfocusedBorderColor = Color(0xFFD0D4D9),
-                                            focusedLabelColor = MahalaxmiRed
-                                        )
-                                    )
-                                    OutlinedButton(
-                                        onClick = {
-                                            scope.launch {
-                                                if (returnRules.isEmpty() && !returnRulesLoading) {
-                                                    runCatching { returnRules = syncRepository.fetchReturnRules() }
-                                                }
-                                                val current = runCatching { LocalDate.parse(expiry) }.getOrDefault(LocalDate.now(IndiaZone))
-                                                val picker = android.app.DatePickerDialog(
-                                                    this@MainActivity,
-                                                    { _, year, month, day ->
-                                                        expiry = LocalDate.of(year, month + 1, day).format(DateTimeFormatter.ISO_DATE)
-                                                    },
-                                                    current.year, current.monthValue - 1, current.dayOfMonth
-                                                )
-                                                val rule = categoryRuleFor(category, returnRules)
-                                                if (rule != null) {
-                                                    val maxAllowed = LocalDate.now(IndiaZone).plusDays(rule.returnDays.toLong())
-                                                    picker.datePicker.maxDate = maxAllowed.atStartOfDay(IndiaZone).toInstant().toEpochMilli()
-                                                }
-                                                picker.show()
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                Text("EAN Barcode or SkuCode", color = Color(0xFF334155), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                                Text("${masterSkuCount.toString()} local SKUs", color = Color(0xFF64748B), fontSize = 11.sp)
                                             }
-                                        },
-                                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = RetailSlate),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1))
-                                    ) {
-                                        val displayExpiry = runCatching {
-                                            LocalDate.parse(expiry).format(DateTimeFormatter.ofPattern("dd-MM-yyyy"))
-                                        }.getOrDefault(expiry)
-                                        Text("EXPIRY DATE  •  $displayExpiry  •  CHANGE", fontWeight = FontWeight.Bold)
-                                    }
-
-                                    Button(
-                                        onClick = {
-                                            val enteredCategory = normalizedRuleName(category)
-                                            val allowedToday = todaySchedule.map { normalizedRuleName(it.baseCategory) }
-                                            if (enteredCategory.isNotBlank() && enteredCategory !in allowedToday) {
-                                                categoryMismatchPending = true
-                                            } else {
-                                                saveExpiryEntry()
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                                        shape = RoundedCornerShape(16.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
-                                    ) { Text("SAVE ENTRY", fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp) }
-                                    if (message.isNotBlank()) Text(message, color = MahalaxmiRed, fontSize = 13.sp)
-                                        }
-                                    }
-                                }
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
-                                ) {
-                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                                                Text("TODAY'S SCHEDULED CATEGORIES · MARK NO EXPIRY", color = RetailInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                        if (scheduledSupabaseCategories.isEmpty()) {
-                                            Text("Sync the product master to load today's scheduled categories.", color = RetailSlate, fontSize = 12.sp)
-                                        } else {
-                                            scheduledSupabaseCategories.forEach { categoryName ->
-                                                val isLogged = currentSessionEntries.any { entry ->
-                                                    entry.expiry.equals("NO EXPIRY", true) &&
-                                                        entry.store.equals(store, true) &&
-                                                        entry.noExpiryCategory.equals(categoryName, true)
-                                                }
-                                                Button(
-                                                    onClick = {
-                                                        if (!isLogged) {
-                                                            pendingNoExpiryCategory = categoryName
-                                                            showNoExpiryConfirmDialog = true
-                                                        }
-                                                    },
-                                                    enabled = !isLogged,
-                                                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                OutlinedTextField(
+                                                    value = code, onValueChange = { code = it; message = "" },
+                                                    modifier = Modifier.weight(1f), singleLine = true,
+                                                    placeholder = { Text("Scan or type EAN / SkuCode…", fontSize = 13.sp) },
                                                     shape = RoundedCornerShape(12.dp),
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = if (isLogged) Color(0xFFDCFCE7) else Color(0xFF15803D),
-                                                        disabledContainerColor = Color(0xFFDCFCE7),
-                                                        contentColor = if (isLogged) Color(0xFF15803D) else Color.White,
-                                                        disabledContentColor = Color(0xFF15803D)
-                                                    )
-                                                ) {
-                                                    Text(
-                                                        if (isLogged) "✓ No Expiry Logged · $categoryName" else "No Expiry · $categoryName",
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 12.sp
-                                                    )
-                                                }
-                                            }
-                                        }
-Text("CATEGORY SCHEDULE", color = RetailSlate, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                                                Column(
-                                                Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp),
-                                                verticalArrangement = Arrangement.spacedBy(3.dp)
-                                            ) {
-                                                Row(
-                                                    Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                                ) {
-                                                    todaySchedule.forEach { row ->
-                                                        Surface(shape = RoundedCornerShape(10.dp), color = Color(0xFFFEE2E2)) {
-                                                            Text(
-                                                                row.baseCategory,
-                                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                                                                fontSize = 12.sp,
-                                                                lineHeight = 16.sp,
-                                                                fontWeight = FontWeight.Bold,
-                                                                color = MahalaxmiRed
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                                if (todaySchedule.isEmpty()) {
-                                                    Text(
-                                                        "No categories scheduled today",
-                                                        fontSize = 15.sp,
-                                                        color = Color(0xFF73777D)
-                                                    )
-                                                }
-                                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                                    TextButton(
-                                                        onClick = {
-                                                            showReturnRules = true
-                                                            if (returnRules.isEmpty() && !returnRulesLoading) {
-                                                                scope.launch {
-                                                                    returnRulesLoading = true
-                                                                    returnRulesError = ""
-                                                                    try {
-                                                                        returnRules = syncRepository.fetchReturnRules()
-                                                                    } catch (error: Exception) {
-                                                                        returnRulesError = error.message ?: "Could not load return rules."
-                                                                    } finally {
-                                                                        returnRulesLoading = false
-                                                                    }
-                                                                }
-                                                            }
-                                                        },
-                                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                                                    ) { Text("ⓘ Return Rules", fontSize = 12.sp, color = MahalaxmiRed, fontWeight = FontWeight.Bold) }
-                                                }
-                                            }
-                                    }
-                                }
-
-                            }
-
-                            AppScreen.Lookup -> {
-                                val uniqueCategoryProducts = remember(todayCategoryProducts) {
-                                    todayCategoryProducts.distinctBy { it.skuName.trim().lowercase() }
-                                }
-                                val filteredCategoryProducts = remember(uniqueCategoryProducts, lookupQuery) {
-                                    if (lookupQuery.isBlank()) uniqueCategoryProducts
-                                    else uniqueCategoryProducts.filter { product ->
-                                        product.skuName.contains(lookupQuery, ignoreCase = true) ||
-                                            product.skuCode.contains(lookupQuery, ignoreCase = true) ||
-                                            product.scanCode.contains(lookupQuery, ignoreCase = true)
-                                    }
-                                }
-                                Column(
-                                    Modifier.fillMaxSize().padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Text("SKU Lookup", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = RetailInk)
-                                        Text("Search products assigned for today's inspection", fontSize = 13.sp, color = RetailSlate)
-                                    }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        todaySchedule.forEach { row ->
-                                            Surface(shape = RoundedCornerShape(10.dp), color = Color(0xFFFEE2E2)) {
-                                                Text(row.baseCategory, modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                                    fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MahalaxmiRed)
-                                            }
-                                        }
-                                    }
-                                    OutlinedTextField(
-                                        value = lookupQuery,
-                                        onValueChange = { lookupQuery = it },
-                                        label = { Text("Search product name, SKU or barcode") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(14.dp),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = MahalaxmiRed,
-                                            unfocusedBorderColor = Color(0xFFD0D4D9),
-                                            focusedLabelColor = MahalaxmiRed
-                                        )
-                                    )
-                                    if (filteredCategoryProducts.isEmpty()) {
-                                        Text(
-                                            if (todayCategoryProducts.isEmpty()) "No products in today's category."
-                                            else "No matching products.",
-                                            color = Color.Gray,
-                                            fontSize = 13.sp
-                                        )
-                                    } else {
-                                        LazyColumn(
-                                            modifier = Modifier.fillMaxSize(),
-                                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {                                            items(filteredCategoryProducts, key = { "category-${it.rowId}" }) { product ->
-                                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                                            Text("SKU  ${product.skuCode}", fontSize = 12.sp, color = RetailSlate)
-                                                            if (product.scanCode.isNotBlank()) {
-                                                                Text("EAN  ${product.scanCode}", fontSize = 12.sp, color = RetailSlate)
-                                                            }
-                                                        }
-                                                        Text("Today's inspection list", fontSize = 10.sp, color = MahalaxmiRed, fontWeight = FontWeight.SemiBold)
-                                                    }                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            AppScreen.History -> {
-                                Column(
-                                    Modifier.fillMaxSize().padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Text("Entry History", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = RetailInk)
-                                        Text("Current business day • 3 PM to 3 PM", fontSize = 12.sp, color = RetailSlate)
-                                    }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                                                Text("Qty: ${item.quantity}", color = MahalaxmiRed, fontWeight = FontWeight.Bold)
-                                                                Spacer(Modifier.width(12.dp))
-                                                                Text("Expiry: ${item.expiryDate}")
-                                                            }
-                                                            Text("Category: ${item.category.ifBlank { "Pending verification" }}")
-                                                        }
-                                                        TextButton(onClick = { pendingDelete = item }) {
-                                                            Text("Delete entry", color = MahalaxmiRed)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            AppScreen.Settings -> {
-                                Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = RetailInk)
-                                        Text("Store, product master and device synchronization", color = RetailSlate, fontSize = 13.sp)
-                                    }
-
-                                    if (message.isNotBlank()) Text(message, color = MahalaxmiRed, fontSize = 12.sp)
-                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
-                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                            Text("SUPABASE SYNC", fontWeight = FontWeight.Bold, color = MahalaxmiRed)
-                                            Text(syncMessage, fontSize = 13.sp)
-                                            if (isSyncing || syncTotal > 0) {
-                                                val progress = if (syncTotal > 0) (syncCompleted.toFloat() / syncTotal.toFloat()).coerceIn(0f, 1f) else 0f
-                                                LinearProgressIndicator(
-                                                    progress = { progress },
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    color = MahalaxmiRed
+                                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFC62828), unfocusedBorderColor = Color(0xFFCBD5E1), focusedContainerColor = Color.White, unfocusedContainerColor = Color(0xFFF8FAFC))
                                                 )
-                                                Text(
-                                                    if (syncTotal > 0) "$syncPhase: ${syncCompleted.coerceAtMost(syncTotal)} / $syncTotal rows  •  ${(progress * 100).toInt()}%"
-                                                    else syncPhase,
-                                                    fontSize = 12.sp,
-                                                    color = Color.Gray
-                                                )
+                                                Button(onClick = {
+                                                    GmsBarcodeScanning.getClient(this@MainActivity).startScan()
+                                                        .addOnSuccessListener { barcode -> barcode.rawValue?.let { scannedValue = it } }
+                                                        .addOnCanceledListener { message = "Scan cancelled" }
+                                                        .addOnFailureListener { e -> message = "Scanner error: ${e.localizedMessage ?: "Please try again"}" }
+                                                }, modifier = Modifier.size(52.dp), contentPadding = PaddingValues(0.dp),
+                                                    shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))) {
+                                                    Text("▦", fontSize = 24.sp)
+                                                }
                                             }
-                                            Button(
-                                                onClick = {
-                                                    if (!isSyncing) {
-                                                        scope.launch {
-                                                            isSyncing = true
-                                                            syncCompleted = 0
-                                                            syncTotal = 0
-                                                            syncPhase = "Connecting to Supabase…"
-                                                            syncMessage = "Importing product master… expiry entries stay on this device."
-                                                            try {
-                                                                val result = syncRepository.sync { progress ->
-                                                                    syncCompleted = progress.completed
-                                                                    syncTotal = progress.total
-                                                                    syncPhase = progress.phase
-                                                                }
-                                                                syncMessage = result.message
-                                                                syncPhase = "Complete"
-                                                                syncCompleted = result.productsUpdated
-                                                                syncTotal = result.productsUpdated
-                                                            } catch (error: Exception) {
-                                                                syncMessage = error.message ?: "Sync failed. Check internet and Supabase configuration."
-                                                                syncPhase = "Sync failed"
-                                                            } finally {
-                                                                isSyncing = false
-                                                            }
-                                                        }
+                                            if (name.isNotBlank()) {
+                                                Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF8FAFC),
+                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                                    Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                                        Text("✓  MATCHED IN MASTER", color = Color(0xFF15803D), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        Text(name, color = Color(0xFF0F172A), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                                        Text("SKU ${code}  ·  ${category.ifBlank { "Category unavailable" }}", color = Color(0xFF475569), fontSize = 11.sp)
                                                     }
-                                                },
-                                                enabled = !isSyncing,
-                                                modifier = Modifier.fillMaxWidth(),
-                                                colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)
-                                            ) {
-                                                Text(if (isSyncing) "SYNCING…" else "SYNC NOW")
+                                                }
+                                            } else {
+                                                Text("Scan a barcode or type an EAN / SkuCode to fetch the product from local Master.",
+                                                    color = Color(0xFF64748B), fontSize = 12.sp)
+                                            }
+                                            Text("Quantity", color = Color(0xFF334155), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                OutlinedButton(onClick = { qty = ((qty.toIntOrNull() ?: 1) - 1).coerceAtLeast(1).toString() },
+                                                    modifier = Modifier.size(50.dp), contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(12.dp)) { Text("−", fontSize = 22.sp) }
+                                                OutlinedTextField(value = qty, onValueChange = { qty = it.filter(Char::isDigit) },
+                                                    modifier = Modifier.weight(1f), singleLine = true,
+                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                    placeholder = { Text("1") }, shape = RoundedCornerShape(12.dp),
+                                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFC62828), unfocusedBorderColor = Color(0xFFCBD5E1), focusedContainerColor = Color.White, unfocusedContainerColor = Color(0xFFF8FAFC)))
+                                                OutlinedButton(onClick = { qty = ((qty.toIntOrNull() ?: 0) + 1).toString() },
+                                                    modifier = Modifier.size(50.dp), contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(12.dp)) { Text("+", fontSize = 22.sp) }
+                                            }
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                Text("Expiry Date", color = Color(0xFF334155), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                                val daysLeft = runCatching { java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(IndiaZone), LocalDate.parse(expiry)).toInt() }.getOrNull()
+                                                Text(daysLeft?.let { if (it < 0) "Expired ${-it}d ago" else "${it} days left" } ?: "", color = if ((daysLeft ?: 999) < 0) Color(0xFFC62828) else Color(0xFF64748B), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            OutlinedButton(onClick = {
+                                                scope.launch {
+                                                    if (returnRules.isEmpty() && !returnRulesLoading) runCatching { returnRules = syncRepository.fetchReturnRules() }
+                                                    val current = runCatching { LocalDate.parse(expiry) }.getOrDefault(LocalDate.now(IndiaZone))
+                                                    val picker = android.app.DatePickerDialog(this@MainActivity, { _, year, month, day -> expiry = LocalDate.of(year, month + 1, day).format(DateTimeFormatter.ISO_DATE) }, current.year, current.monthValue - 1, current.dayOfMonth)
+                                                    val rule = categoryRuleFor(category, returnRules)
+                                                    val scheduledRow = scheduleRowForMasterCategory(category, todaySchedule)
+                                                    if (rule != null || scheduledRow != null) {
+                                                        val effectiveDays = maxOf(rule?.returnDays ?: 0, scheduledRow?.cycleDays ?: 0)
+                                                        picker.datePicker.maxDate = LocalDate.now(IndiaZone).plusDays(effectiveDays.toLong()).atStartOfDay(IndiaZone).toInstant().toEpochMilli()
+                                                    }
+                                                    picker.show()
+                                                }
+                                            }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF334155)),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1))) {
+                                                Text("▦   ${runCatching { LocalDate.parse(expiry).format(DateTimeFormatter.ofPattern("dd MMM yyyy", java.util.Locale.ENGLISH)) }.getOrDefault(expiry)}   ·   CHANGE", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                            }
+                                            if (message.isNotBlank()) {
+                                                Surface(shape = RoundedCornerShape(10.dp), color = Color(0xFFFEE2E2)) {
+                                                    Text(message, Modifier.fillMaxWidth().padding(10.dp), color = Color(0xFF991B1B), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                                }
+                                            }
+                                            Button(onClick = {
+                                                vibrateFeedback(70L)
+                                                val enteredCategory = normalizedRuleName(category)
+                                                val allowedToday = scheduledSupabaseCategories.map(::normalizedRuleName)
+                                                if (enteredCategory.isNotBlank() && enteredCategory !in allowedToday) categoryMismatchPending = true
+                                                else saveExpiryEntry()
+                                            }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))) {
+                                                Text("✓   SAVE EXPIRY ENTRY", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                             }
                                         }
                                     }
-                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
-                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Text("CURRENT STORE", fontSize = 10.sp, color = RetailSlate, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
-                                            Text(if (store.isBlank()) "Not configured" else store, fontSize = 17.sp, color = RetailInk, fontWeight = FontWeight.Bold)
-                                            Text("Store changes are PIN protected.", fontSize = 12.sp, color = RetailSlate)
-                                        }
-                                    }
-                                    OutlinedButton(
-                                        onClick = { storePinInput = ""; storePinError = ""; showStorePinDialog = true },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) { Text("CHANGE STORE NAME (PIN REQUIRED)") }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+
+                                    if (scheduledSupabaseCategories.isNotEmpty()) {
+                                        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+                                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                    Text("Today's Scheduled Categories — Mark No Expiry", color = Color(0xFF0F172A), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                    Text("${scheduledSupabaseCategories.size} scheduled", color = Color(0xFF64748B), fontSize = 11.sp)
+                                                }
