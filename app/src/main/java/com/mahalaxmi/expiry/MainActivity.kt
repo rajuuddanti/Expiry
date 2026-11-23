@@ -578,31 +578,49 @@ class MainActivity : ComponentActivity() {
                     }
                 ) { padding ->
                     Column(
-                        Modifier.fillMaxSize().padding(padding).background(Color(0xFFFAF8FF))
+                        Modifier.fillMaxSize().padding(padding).background(Color(0xFFF8FAFC))
                     ) {
-                        Column(
-                            Modifier.fillMaxWidth()
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
                                 .background(Color.White)
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
-                            Text(
-                                "MAHALAXMI MAHAMART",
-                                color = MahalaxmiRed,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
-                            Text(
-                                "Expiry Manager",
-                                color = Color(0xFF25282C),                                fontSize = 25.sp,
-                                lineHeight = 29.sp,                                fontWeight = FontWeight.ExtraBold
-                            )                        }
-                        Divider(color = Color(0xFFE5E7EB), thickness = 1.dp)
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text("Expiry Manager", color = RetailInk, fontSize = 18.sp, lineHeight = 22.sp, fontWeight = FontWeight.ExtraBold)
+                                Text(store.ifBlank { "Branch Not Set" }, color = RetailSlate, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                            }
+                            val pendingHeaderCount = currentSessionEntries.count { it.syncStatus.equals("PENDING", true) }
+                            Surface(
+                                onClick = {
+                                    if (pendingHeaderCount > 0 && !isUploading) {
+                                        scope.launch {
+                                            isUploading = true
+                                            try { uploadMessage = syncRepository.uploadPendingEntries().message }
+                                            catch (error: Exception) { uploadMessage = error.message ?: "Upload failed; entries remain pending." }
+                                            finally { isUploading = false }
+                                        }
+                                    } else if (pendingHeaderCount == 0) screen = AppScreen.History
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (pendingHeaderCount > 0) Color(0xFFFEF3C7) else Color(0xFFDCFCE7)
+                            ) {
+                                Text(
+                                    if (isUploading) "Syncing…" else if (pendingHeaderCount > 0) "$pendingHeaderCount Pending" else "Synced",
+                                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
+                                    color = if (pendingHeaderCount > 0) Color(0xFF92400E) else Color(0xFF15803D),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        Divider(color = Color(0xFFE2E8F0), thickness = 1.dp)
 
                         when (screen) {
                             AppScreen.Scan -> {
                                 Column(
-                                    Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp).verticalScroll(rememberScrollState()),
+                                    Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp).verticalScroll(rememberScrollState()),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     Column(
@@ -896,15 +914,7 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier.fillMaxSize(),
                                             verticalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {                                            items(filteredCategoryProducts, key = { "category-${it.rowId}" }) { product ->
-                                                Card(
-                                                    Modifier.fillMaxWidth(),
-                                                    shape = RoundedCornerShape(16.dp),
-                                                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
-                                                ) {
-                                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                        Text(product.skuName, fontWeight = FontWeight.Bold, color = RetailInk, fontSize = 15.sp)
-                                                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                                             Text("SKU  ${product.skuCode}", fontSize = 12.sp, color = RetailSlate)
                                                             if (product.scanCode.isNotBlank()) {
                                                                 Text("EAN  ${product.scanCode}", fontSize = 12.sp, color = RetailSlate)
