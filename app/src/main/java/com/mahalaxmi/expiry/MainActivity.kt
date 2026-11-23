@@ -297,8 +297,7 @@ class MainActivity : ComponentActivity() {
                             !entry.expiry.equals("NO EXPIRY", ignoreCase = true) &&
                             normalizedRuleName(entry.category) == normalizedRuleName(selectedCategory)
                     }
-                    if (existingExpiryEntries.isNotEmpty()) {
-                        message = "$selectedCategory already has active expiry entries today. Delete them from History before marking NO EXPIRY."
+                    if (existingExpiryEntries.isNotEmpty()) {                        message = "$selectedCategory already has active expiry entries today. Delete them from History before marking NO EXPIRY."
                         return@launch
                     }
                     if (dao.activeNoExpiryCount(store, session, selectedCategory) > 0) {
@@ -597,8 +596,7 @@ class MainActivity : ComponentActivity() {
                             )
                             Text(
                                 "Expiry Manager",
-                                color = Color(0xFF25282C),
-                                fontSize = 25.sp,
+                                color = Color(0xFF25282C),                                fontSize = 25.sp,
                                 lineHeight = 29.sp,
                                 fontWeight = FontWeight.ExtraBold
                             )
@@ -850,17 +848,32 @@ class MainActivity : ComponentActivity() {
                                 }
                                 Column(
                                     Modifier.fillMaxSize().padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    todaySchedule.forEach { row ->
-                                        Text(row.baseCategory, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text("SKU Lookup", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = RetailInk)
+                                        Text("Search products assigned for today's inspection", fontSize = 13.sp, color = RetailSlate)
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        todaySchedule.forEach { row ->
+                                            Surface(shape = RoundedCornerShape(10.dp), color = Color(0xFFFEE2E2)) {
+                                                Text(row.baseCategory, modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                                    fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MahalaxmiRed)
+                                            }
+                                        }
                                     }
                                     OutlinedTextField(
                                         value = lookupQuery,
                                         onValueChange = { lookupQuery = it },
-                                        label = { Text("SKU search") },
+                                        label = { Text("Search product name, SKU or barcode") },
                                         modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = MahalaxmiRed,
+                                            unfocusedBorderColor = Color(0xFFD0D4D9),
+                                            focusedLabelColor = MahalaxmiRed
+                                        )
                                     )
                                     if (filteredCategoryProducts.isEmpty()) {
                                         Text(
@@ -893,12 +906,30 @@ class MainActivity : ComponentActivity() {
                             }
 
                             AppScreen.History -> {
-                                Column(Modifier.fillMaxSize().padding(16.dp)) {
-                                    Text("Entry History", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                                    Text("Today's entries: ${currentSessionEntries.size}", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
-                                    Button(onClick = { shareCsv(currentSessionEntries) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text("EXPORT CSV / SHARE") }
-                                    Button(
-                                        onClick = {
+                                Column(
+                                    Modifier.fillMaxSize().padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text("Entry History", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = RetailInk)
+                                        Text("Current business day • 3 PM to 3 PM", fontSize = 12.sp, color = RetailSlate)
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Card(Modifier.weight(1f), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                            Column(Modifier.padding(12.dp)) {
+                                                Text("ENTRIES", fontSize = 10.sp, color = RetailSlate, fontWeight = FontWeight.Bold)
+                                                Text("${currentSessionEntries.size}", fontSize = 24.sp, color = RetailInk, fontWeight = FontWeight.ExtraBold)
+                                            }
+                                        }
+                                        Card(Modifier.weight(1f), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                            Column(Modifier.padding(12.dp)) {
+                                                Text("QUANTITY", fontSize = 10.sp, color = RetailSlate, fontWeight = FontWeight.Bold)
+                                                Text("${currentSessionEntries.filter { !it.expiry.equals("NO EXPIRY", true) }.sumOf { it.quantity }}", fontSize = 24.sp, color = RetailInk, fontWeight = FontWeight.ExtraBold)
+                                            }
+                                        }
+                                    }
+                                    Button(onClick = { shareCsv(currentSessionEntries) }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text("EXPORT CSV / SHARE", fontWeight = FontWeight.Bold) }
+                                    Button(                                        onClick = {
                                             if (!isUploading) {
                                                 scope.launch {
                                                     isUploading = true
@@ -915,9 +946,10 @@ class MainActivity : ComponentActivity() {
                                             }
                                         },
                                         enabled = !isUploading,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF455A64))
-                                    ) { Text(if (isUploading) "UPLOADING…" else "UPLOAD TO SUPABASE") }
+                                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE8EDF3), contentColor = RetailInk)
+                                    ) { Text(if (isUploading) "UPLOADING…" else "UPLOAD TO SUPABASE", fontWeight = FontWeight.Bold) }
                                     Text(uploadMessage, color = if (uploadMessage.startsWith("Upload failed")) MahalaxmiRed else Color.Gray, fontSize = 12.sp)
                                     if (currentSessionEntries.isEmpty()) {
                                         Text("No entries for the current day yet.")
@@ -952,9 +984,11 @@ class MainActivity : ComponentActivity() {
                             }
 
                             AppScreen.Settings -> {
-                                Column(Modifier.fillMaxSize().padding(16.dp)) {
-                                    Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                                    Text("Product master import and local data", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
+                                Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = RetailInk)
+                                        Text("Store, product master and device synchronization", color = RetailSlate, fontSize = 13.sp)
+                                    }
                                     Button(onClick = {
                                         if (store.isBlank()) {
                                             message = "Please select your store first."
@@ -1014,8 +1048,8 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                     if (message.isNotBlank()) Text(message, color = MahalaxmiRed, fontSize = 12.sp)
-                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                             Text("SUPABASE SYNC", fontWeight = FontWeight.Bold, color = MahalaxmiRed)
                                             Text(syncMessage, fontSize = 13.sp)
                                             if (isSyncing || syncTotal > 0) {
@@ -1068,14 +1102,13 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     }
-                                    OutlinedTextField(
-                                        value = store,
-                                        onValueChange = {},
-                                        readOnly = true,
-                                        label = { Text("Store name") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
+                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text("CURRENT STORE", fontSize = 10.sp, color = RetailSlate, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+                                            Text(if (store.isBlank()) "Not configured" else store, fontSize = 17.sp, color = RetailInk, fontWeight = FontWeight.Bold)
+                                            Text("Store changes are PIN protected.", fontSize = 12.sp, color = RetailSlate)
+                                        }
+                                    }
                                     OutlinedButton(
                                         onClick = { storePinInput = ""; storePinError = ""; showStorePinDialog = true },
                                         modifier = Modifier.fillMaxWidth()
