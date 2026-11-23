@@ -838,7 +838,42 @@ class MainActivity : ComponentActivity() {
                                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
                                 ) {
                                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text("TODAY'S SCHEDULE", color = RetailInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                                                Text("NO EXPIRY CONFIRMATION", color = RetailSlate, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                        if (scheduledSupabaseCategories.isEmpty()) {
+                                            Text("Sync the product master to load today's scheduled categories.", color = RetailSlate, fontSize = 12.sp)
+                                        } else {
+                                            scheduledSupabaseCategories.forEach { categoryName ->
+                                                val isLogged = currentSessionEntries.any { entry ->
+                                                    entry.expiry.equals("NO EXPIRY", true) &&
+                                                        entry.store.equals(store, true) &&
+                                                        entry.noExpiryCategory.equals(categoryName, true)
+                                                }
+                                                Button(
+                                                    onClick = {
+                                                        if (!isLogged) {
+                                                            pendingNoExpiryCategory = categoryName
+                                                            showNoExpiryConfirmDialog = true
+                                                        }
+                                                    },
+                                                    enabled = !isLogged,
+                                                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = if (isLogged) Color(0xFFDCFCE7) else Color(0xFF15803D),
+                                                        disabledContainerColor = Color(0xFFDCFCE7),
+                                                        contentColor = if (isLogged) Color(0xFF15803D) else Color.White,
+                                                        disabledContentColor = Color(0xFF15803D)
+                                                    )
+                                                ) {
+                                                    Text(
+                                                        if (isLogged) "✓ No Expiry Logged · $categoryName" else "No Expiry · $categoryName",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 12.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+Text("TODAY'S SCHEDULE", color = RetailInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                                 Column(
                                                 Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp),
                                                 verticalArrangement = Arrangement.spacedBy(3.dp)
@@ -995,64 +1030,7 @@ class MainActivity : ComponentActivity() {
                                         Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = RetailInk)
                                         Text("Store, product master and device synchronization", color = RetailSlate, fontSize = 13.sp)
                                     }
-                                    Button(onClick = {
-                                        if (store.isBlank()) {
-                                            message = "Please select your store first."
-                                        } else {
-                                            val marked = currentSessionEntries.filter { it.expiry.equals("NO EXPIRY", true) }
-                                                .map { it.noExpiryCategory }.filter { it.isNotBlank() }.distinctBy { it.uppercase() }
-                                            val remaining = scheduledSupabaseCategories.filter { candidate ->
-                                                marked.none { it.equals(candidate, ignoreCase = true) }
-                                            }
-                                            when {
-                                                scheduledSupabaseCategories.isEmpty() -> message = "No matching Supabase categories found for today's scheduled categories. Sync the product master and try again."
-                                                marked.size >= scheduledSupabaseCategories.size && marked.isNotEmpty() -> showNoExpiryAlreadyDialog = true
-                                                remaining.isEmpty() -> showNoExpiryAlreadyDialog = true
-                                                remaining.size == 1 -> {
-                                                    pendingNoExpiryCategory = remaining.first()
-                                                    showNoExpiryConfirmDialog = true
-                                                }
-                                                else -> {
-                                                    selectedNoExpiryCategory = remaining.first()
-                                                    showNoExpiryCategoryDialog = true
-                                                }
-                                            }
-                                        }
-                                    }, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))) { Text("NO EXPIRY FOUND", fontWeight = FontWeight.Bold) }
-                                    if (showNoExpiryCategoryDialog) {
-                                        val marked = currentSessionEntries.filter { it.expiry.equals("NO EXPIRY", true) }
-                                            .map { it.noExpiryCategory }.filter { it.isNotBlank() }.distinctBy { it.uppercase() }
-                                        val options = scheduledSupabaseCategories.filter { candidate ->
-                                            marked.none { it.equals(candidate, ignoreCase = true) }
-                                        }
-                                        AlertDialog(
-                                            onDismissRequest = { showNoExpiryCategoryDialog = false },
-                                            title = { Text("Which category has no expiry?") },
-                                            text = {
-                                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                    options.forEach { option ->
-                                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                                                            RadioButton(selected = selectedNoExpiryCategory == option, onClick = { selectedNoExpiryCategory = option })
-                                                            Text(option, modifier = Modifier.padding(start = 8.dp, top = 12.dp))
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                            confirmButton = {
-                                                TextButton(onClick = {
-                                                    val chosen = selectedNoExpiryCategory
-                                                    showNoExpiryCategoryDialog = false
-                                                    if (chosen.isNotBlank()) {
-                                                        pendingNoExpiryCategory = chosen
-                                                        showNoExpiryConfirmDialog = true
-                                                    }
-                                                }) { Text("CONTINUE") }
-                                            },
-                                            dismissButton = {
-                                                TextButton(onClick = { showNoExpiryCategoryDialog = false }) { Text("CANCEL") }
-                                            }
-                                        )
-                                    }
+
                                     if (message.isNotBlank()) Text(message, color = MahalaxmiRed, fontSize = 12.sp)
                                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))) {
                                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
