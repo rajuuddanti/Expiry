@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/new-expiry-upload-table
+      - feature/stitch-retail-floor-precision
   workflow_dispatch:
 
 permissions:
