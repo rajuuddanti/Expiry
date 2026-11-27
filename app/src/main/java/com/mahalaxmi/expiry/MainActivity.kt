@@ -33,6 +33,9 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.mahalaxmi.expiry.data.ExpiryDatabase
 import com.mahalaxmi.expiry.data.ExpiryEntryEntity
 import com.mahalaxmi.expiry.data.SupabaseSyncRepository
+import com.mahalaxmi.expiry.data.StoreAccessClient
+import com.mahalaxmi.expiry.data.ArchiveSyncRepository
+import com.mahalaxmi.expiry.data.ArchiveEntryEntity
 import com.mahalaxmi.expiry.data.ExpirySyncWorker
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -52,7 +55,7 @@ import java.time.format.DateTimeFormatter
 
 private val MahalaxmiRed = Color(0xFFB71C1C)
 private val IndiaZone = ZoneId.of("Asia/Kolkata")
-private enum class AppScreen { Scan, Lookup, History, Settings }
+private enum class AppScreen { Scan, Lookup, History, Archive, Settings }
 
 private data class InspectionScheduleRow(val date: LocalDate, val category: String, val cycleDays: Int) {
     val baseCategory: String get() = category.substringBefore("(").trim().uppercase()
@@ -276,6 +279,9 @@ class MainActivity : ComponentActivity() {
                 }
             }
             val syncRepository = remember { SupabaseSyncRepository(applicationContext, dao) }
+            val storeAccessClient = remember { StoreAccessClient(applicationContext) }
+            val archiveRepository = remember { ArchiveSyncRepository(applicationContext, dao) }
+            val archiveEntries by dao.observeArchiveEntries().collectAsState(initial = emptyList())
             var syncMessage by remember { mutableStateOf("Not synced yet") }
             var lastMasterSync by remember { mutableStateOf(prefs.getString("master_last_sync", null)) }
             var cooldownClock by remember { mutableStateOf(LocalDateTime.now(IndiaZone)) }
@@ -317,6 +323,20 @@ class MainActivity : ComponentActivity() {
             var isUploading by remember { mutableStateOf(false) }
             var uploadMessage by remember { mutableStateOf("Expiry entries have not been uploaded yet.") }
             var store by remember { mutableStateOf(prefs.getString("store", "") ?: "") }
+            var loginMobile by remember { mutableStateOf("") }
+            var loginPassword by remember { mutableStateOf("") }
+            var loginError by remember { mutableStateOf("") }
+            var loginBusy by remember { mutableStateOf(false) }
+            var showLoginDialog by remember { mutableStateOf((prefs.getString("store", "") ?: "").isBlank()) }
+            var archiveSyncBusy by remember { mutableStateOf(false) }
+            var archiveSyncProgress by remember { mutableStateOf("") }
+            var archiveSyncMessage by remember { mutableStateOf("Archive is stored locally. Tap SYNC to recover server records.") }
+            var archiveSearch by remember { mutableStateOf("") }
+            var archiveDate by remember { mutableStateOf("") }
+            var archiveCategorySelection by remember { mutableStateOf(setOf<String>()) }
+            var showArchiveCategoryPicker by remember { mutableStateOf(false) }
+            var showArchiveDatePicker by remember { mutableStateOf(false) }
+            var loginForArchive by remember { mutableStateOf(false) }
             var storeDraft by remember { mutableStateOf("") }
             var storePinInput by remember { mutableStateOf("") }
             var storePinError by remember { mutableStateOf("") }
@@ -553,6 +573,60 @@ class MainActivity : ComponentActivity() {
             }
 
             MaterialTheme {
+                if (showLoginDialog) {
+                    AlertDialog(
+                        onDismissRequest = { if (store.isNotBlank()) showLoginDialog = false },
+                        title = { Text("Store Login", color = MahalaxmiRed, fontWeight = FontWeight.Bold) },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("Sign in using the mobile number and password assigned to your store.", fontSize = 13.sp)
+                                OutlinedTextField(value = loginMobile, onValueChange = { loginMobile = it.filter(Char::isDigit).take(10) }, label = { Text("Mobile Number") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+                                OutlinedTextField(value = loginPassword, onValueChange = { loginPassword = it }, label = { Text("Password") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
+                                if (loginError.isNotBlank()) Text(loginError, color = MahalaxmiRed, fontSize = 12.sp)
+                            }
+                        },
+                        confirmButton = {
+                            Button(enabled = !loginBusy && loginMobile.length == 10 && loginPassword.isNotBlank(), onClick = {
+                                scope.launch {
+                                    loginBusy = true; loginError = ""
+                                    try {
+                                        val session = storeAccessClient.login(loginMobile, loginPassword)
+                                        store = session.storeName
+                                        prefs.edit().putString("store", session.storeName).apply()
+                                        loginPassword = ""
+                                        showLoginDialog = false
+                                        loginForArchive = false
+                                        if (screen == AppScreen.Archive) archiveSyncMessage = "Signed in as ${session.storeName}. Tap SYNC to recover records."
+                                    } catch (error: Exception) {
+                                        loginError = error.message ?: "Login failed. Check your details and try again."
+                                    } finally { loginBusy = false }
+                                }
+                            }, colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text(if (loginBusy) "SIGNING IN…" else "LOGIN") }
+                        },
+                        dismissButton = { if (store.isNotBlank()) TextButton(onClick = { showLoginDialog = false; loginForArchive = false }) { Text("CANCEL") } }
+                    )
+                }
+                if (showArchiveCategoryPicker) {
+                    AlertDialog(onDismissRequest = { showArchiveCategoryPicker = false }, title = { Text("Filter categories") },
+                        text = { Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                            archiveEntries.map { it.category.trim() }.filter { it.isNotBlank() }.distinct().sorted().forEach { cat ->
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                    Checkbox(checked = cat in archiveCategorySelection, onCheckedChange = { checked -> archiveCategorySelection = if (checked) archiveCategorySelection + cat else archiveCategorySelection - cat })
+                                    Text(cat, fontSize = 13.sp)
+                                }
+                            }
+                        } },
+                        confirmButton = { TextButton(onClick = { showArchiveCategoryPicker = false }) { Text("APPLY", color = MahalaxmiRed) } },
+                        dismissButton = { TextButton(onClick = { archiveCategorySelection = emptySet(); showArchiveCategoryPicker = false }) { Text("CLEAR") } })
+                }
+                if (showArchiveDatePicker) {
+                    val today = LocalDate.now(IndiaZone)
+                    val picker = android.app.DatePickerDialog(this@MainActivity, { _, year, month, day -> archiveDate = LocalDate.of(year, month + 1, day).toString() }, today.year, today.monthValue - 1, today.dayOfMonth)
+                    picker.datePicker.maxDate = today.atStartOfDay(IndiaZone).toInstant().toEpochMilli()
+                    picker.setOnDismissListener { showArchiveDatePicker = false }
+                    picker.show()
+                    showArchiveDatePicker = false
+                }
                 if (updateDialogOpen) {
                     val availableUpdate = updateInfo
                     AlertDialog(
@@ -1136,6 +1210,7 @@ class MainActivity : ComponentActivity() {
                                     Text("Entry History", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                                     Text("Today's entries: ${currentSessionEntries.size}", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
                                     Button(onClick = { shareCsv(currentSessionEntries) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text("EXPORT CSV / SHARE") }
+                                    OutlinedButton(onClick = { screen = AppScreen.Archive }, modifier = Modifier.fillMaxWidth()) { Text("DATA ARCHIVE  ›", color = MahalaxmiRed, fontWeight = FontWeight.Bold) }
                                     Button(
                                         onClick = {
                                             if (!isUploading) {
@@ -1182,6 +1257,64 @@ class MainActivity : ComponentActivity() {
                                                         TextButton(onClick = { pendingDelete = item }) {
                                                             Text("Delete entry", color = MahalaxmiRed)
                                                         }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            AppScreen.Archive -> {
+                                val filteredArchive = remember(archiveEntries, archiveSearch, archiveDate, archiveCategorySelection) {
+                                    val tokens = archiveSearch.trim().lowercase().split(Regex("\\\\s+")).filter { it.isNotBlank() }
+                                    archiveEntries.filter { row ->
+                                        (archiveDate.isBlank() || row.date == archiveDate) &&
+                                        (archiveCategorySelection.isEmpty() || row.category in archiveCategorySelection) &&
+                                        tokens.all { token -> listOf(row.skuName, row.skuCode, row.scannedCode, row.category, row.noExpiryCategory).any { it.contains(token, ignoreCase = true) } }
+                                    }.sortedWith(compareByDescending<ArchiveEntryEntity> { it.date }.thenByDescending { it.time })
+                                }
+                                Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                        Text("Data Archive", fontSize = 21.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                        TextButton(onClick = { screen = AppScreen.History }) { Text("BACK") }
+                                    }
+                                    Text("${archiveEntries.size} records stored on this device • newest first", color = Color.Gray, fontSize = 12.sp)
+                                    Button(onClick = {
+                                        if (!storeAccessClient.hasSession()) {
+                                            loginForArchive = true; showLoginDialog = true
+                                        } else if (!archiveSyncBusy) {
+                                            scope.launch {
+                                                archiveSyncBusy = true; archiveSyncProgress = "Starting archive sync…"
+                                                try {
+                                                    val result = archiveRepository.sync { progress -> archiveSyncProgress = "${progress.phase}: ${progress.downloaded} received • ${progress.inserted} new" }
+                                                    archiveSyncMessage = result.message
+                                                } catch (error: Exception) {
+                                                    archiveSyncMessage = "Sync incomplete; daily lock was not intentionally consumed. ${error.message ?: "Please try again."}"
+                                                } finally { archiveSyncBusy = false; archiveSyncProgress = "" }
+                                            }
+                                        }
+                                    }, enabled = !archiveSyncBusy, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text(if (archiveSyncBusy) "SYNCING…" else "SYNC ARCHIVE") }
+                                    if (archiveSyncBusy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = MahalaxmiRed)
+                                    Text(if (archiveSyncBusy) archiveSyncProgress else archiveSyncMessage, fontSize = 12.sp, color = Color.Gray)
+                                    OutlinedTextField(value = archiveSearch, onValueChange = { archiveSearch = it }, label = { Text("Search product / SKU / barcode") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(onClick = { showArchiveDatePicker = true }, modifier = Modifier.weight(1f)) { Text(if (archiveDate.isBlank()) "ALL DATES" else archiveDate, maxLines = 1) }
+                                        OutlinedButton(onClick = { showArchiveCategoryPicker = true }, modifier = Modifier.weight(1f)) { Text(if (archiveCategorySelection.isEmpty()) "ALL CATEGORIES" else "${archiveCategorySelection.size} CATEGORIES", maxLines = 1) }
+                                    }
+                                    if (archiveDate.isNotBlank() || archiveCategorySelection.isNotEmpty() || archiveSearch.isNotBlank()) TextButton(onClick = { archiveDate = ""; archiveCategorySelection = emptySet(); archiveSearch = "" }) { Text("CLEAR FILTERS") }
+                                    if (filteredArchive.isEmpty()) {
+                                        Text("No matching archived records. Tap SYNC ARCHIVE to recover server records.", color = Color.Gray, fontSize = 13.sp)
+                                    } else {
+                                        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                            items(filteredArchive, key = { it.id }) { item ->
+                                                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)) {
+                                                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                                        Text(if (item.expiry.equals("NO EXPIRY", true)) "NO EXPIRY FOUND • ${item.noExpiryCategory}" else item.skuName.ifBlank { "(No product name)" }, fontWeight = FontWeight.Bold)
+                                                        if (!item.expiry.equals("NO EXPIRY", true)) Text("SKU: ${item.skuCode}  •  Scanned: ${item.scannedCode}", fontSize = 12.sp)
+                                                        Text("${item.location}  •  ${item.category}", fontSize = 12.sp, color = Color.Gray)
+                                                        Text("Qty: ${item.quantity}  •  Expiry: ${if (item.expiry.equals("NO EXPIRY", true)) "—" else item.expiryDate}", fontSize = 12.sp)
+                                                        Text("${item.date}  •  ${item.time}", fontSize = 11.sp, color = Color.Gray)
                                                     }
                                                 }
                                             }
@@ -1363,6 +1496,7 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         Text(if (updateChecking) "CHECKING FOR UPDATES…" else "CHECK FOR APP UPDATES")
                                     }
+                                    Text("Current Version: ${BuildConfig.VERSION_NAME}", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
                                     OutlinedTextField(
                                         value = store,
                                         onValueChange = {},
