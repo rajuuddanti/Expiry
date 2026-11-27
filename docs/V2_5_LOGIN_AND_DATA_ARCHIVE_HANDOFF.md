@@ -27,8 +27,9 @@ Last updated: 2026-11-27 (Asia/Kolkata)
 
 - Login screen fields: Mobile Number and Password.
 - The user will provide an Excel file containing Store Name, Mobile Number, and Password. Treat that workbook as the initial credential source; inspect and validate it before importing anything.
-- Existing registered store association must persist through an app upgrade to v2.5. Show login only when no store is registered locally.
-- A fresh install or reinstall requires login again.
+- Every installation upgrading from v2.4 must show the login screen on the first v2.5 launch, even when v2.4 already has a locally saved store name. A saved v2.4 store name is not proof of authentication.
+- After successful login, the server-authenticated store name becomes the app's store identity and replaces the old local store value.
+- Subsequent launches reuse the securely stored session; a fresh install or reinstall requires login again.
 - No logout button is required.
 - Archive access/recovery is scoped to the authenticated store, not the physical device. Multiple devices belonging to the same store must access the same store archive.
 - Retain device identity on records for audit purposes only.
@@ -172,7 +173,7 @@ This is backend groundwork, not a completed v2.5 release. Android login UI/sessi
 - Subsequent sync still downloads server pages and relies on Room insert-ignore to avoid local duplicates. This is not missing-ID-only retrieval and does not meet the intended egress optimization yet.
 - The current deployed backend's daily completion lock is not independently verified against all pages server-side. Do not represent the daily lock as hardened against a modified client.
 - Login rate limiting and backend brute-force protection remain unimplemented.
-- Existing installations with a local store name but no v2.5 session can continue using the existing app screens; archive recovery requires a one-time sign-in.
+- Existing v2.4 installations with a saved store name but no v2.5 session are blocked at app entry until the one-time login succeeds.
 - The token is Keystore-encrypted, but session validation/refresh via the Edge Function `me` action has not yet been wired into app startup. The server still authenticates every archive request.
 
 ### Latest implementation commits
@@ -190,3 +191,15 @@ This is backend groundwork, not a completed v2.5 release. Android login UI/sessi
 
 - Local archive display is additionally filtered to the currently selected store so cached records from another store on the same device are not shown.
 - Latest UI follow-up commit: `3c424ca`.
+
+
+## Corrected login behavior — 2026-11-27
+
+The earlier implementation incorrectly treated a locally saved v2.4 store name as sufficient to enter the app and prompted for credentials only when opening Data Archive. This has been corrected on the feature branch:
+
+- A v2.4 installation has no v2.5 authenticated session, so the first v2.5 launch always requires mobile number + password login, regardless of the locally saved store name.
+- The login dialog is mandatory and cannot be dismissed until authentication succeeds.
+- Successful server login sets the store identity; the account's store name replaces the old local store value.
+- The encrypted session is reused on subsequent launches, so staff are not asked to log in every time.
+- Removed the PIN-protected Change Store Name dialog and its Settings button. Store identity is assigned by the registered account, not manually edited on the device.
+- No Supabase changes were made for this correction.
