@@ -332,6 +332,8 @@ class MainActivity : ComponentActivity() {
             var showArchiveSyncConfirm by remember { mutableStateOf(false) }
             var archiveSyncProgress by remember { mutableStateOf("") }
             var archiveSyncMessage by remember { mutableStateOf("Archive is stored locally. Tap SYNC to recover server records.") }
+            var archiveSyncedStore by remember { mutableStateOf(prefs.getString("archive_sync_completed_store", null)) }
+            val archiveSyncCompletedForStore = store.isNotBlank() && archiveSyncedStore == store
             var archiveSearch by remember { mutableStateOf("") }
             var archiveDate by remember { mutableStateOf("") }
             var archiveCategorySelection by remember { mutableStateOf(setOf<String>()) }
@@ -582,6 +584,9 @@ class MainActivity : ComponentActivity() {
                                             archiveSyncProgress = "${progress.phase}: ${progress.downloaded} received • ${progress.inserted} new"
                                         }
                                         archiveSyncMessage = result.message
+                                        // Lock archive recovery on this device only after a fully successful sync.
+                                        prefs.edit().putString("archive_sync_completed_store", store).apply()
+                                        archiveSyncedStore = store
                                     } catch (error: Exception) {
                                         archiveSyncMessage = "Sync incomplete. ${error.message ?: "Please try again."}"
                                     } finally { archiveSyncBusy = false; archiveSyncProgress = "" }
@@ -1157,10 +1162,14 @@ class MainActivity : ComponentActivity() {
 
                             AppScreen.History -> {
                                 Column(Modifier.fillMaxSize().padding(16.dp)) {
-                                    Text("Entry History", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                        Text("Entry History", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                        IconButton(onClick = { screen = AppScreen.Archive }) {
+                                            Text("▤", fontSize = 27.sp, color = MahalaxmiRed)
+                                        }
+                                    }
                                     Text("Today's entries: ${currentSessionEntries.size}", color = Color.Gray, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
                                     Button(onClick = { shareCsv(currentSessionEntries) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text("EXPORT CSV / SHARE") }
-                                    OutlinedButton(onClick = { screen = AppScreen.Archive }, modifier = Modifier.fillMaxWidth()) { Text("DATA ARCHIVE  ›", color = MahalaxmiRed, fontWeight = FontWeight.Bold) }
                                     Button(
                                         onClick = {
                                             if (!isUploading) {
@@ -1231,10 +1240,14 @@ class MainActivity : ComponentActivity() {
                                         TextButton(onClick = { screen = AppScreen.History }) { Text("BACK") }
                                     }
                                     Text("${archiveEntries.size} records stored on this device • newest first", color = Color.Gray, fontSize = 12.sp)
-                                    Button(onClick = {
-                                        if (!storeAccessClient.hasSession()) showLoginDialog = true
-                                        else if (!archiveSyncBusy) showArchiveSyncConfirm = true
-                                    }, enabled = !archiveSyncBusy, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text(if (archiveSyncBusy) "SYNCING…" else "SYNC ARCHIVE") }
+                                    if (!archiveSyncCompletedForStore) {
+                                        Button(onClick = {
+                                            if (!storeAccessClient.hasSession()) showLoginDialog = true
+                                            else if (!archiveSyncBusy) showArchiveSyncConfirm = true
+                                        }, enabled = !archiveSyncBusy, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text(if (archiveSyncBusy) "SYNCING…" else "SYNC ARCHIVE") }
+                                    } else {
+                                        Text("ARCHIVE SYNC COMPLETED FOR THIS STORE", color = Color(0xFF2E7D32), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
                                     if (archiveSyncBusy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = MahalaxmiRed)
                                     Text(if (archiveSyncBusy) archiveSyncProgress else archiveSyncMessage, fontSize = 12.sp, color = Color.Gray)
                                     OutlinedTextField(value = archiveSearch, onValueChange = { archiveSearch = it }, label = { Text("Search product / SKU / barcode") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
