@@ -187,3 +187,6 @@ This is backend groundwork, not a completed v2.5 release. Android login UI/sessi
 - `7c8dfc2` — Android Keystore token encryption
 - `3d883e6` — manual sync confirmation
 - `eca163f` — India-timezone archive retention
+
+- Local archive display is additionally filtered to the currently selected store so cached records from another store on the same device are not shown.
+- Latest UI follow-up commit: `3c424ca`.
