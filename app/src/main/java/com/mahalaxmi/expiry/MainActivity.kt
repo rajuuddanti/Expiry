@@ -1283,6 +1283,7 @@ class MainActivity : ComponentActivity() {
                                 val filteredArchive = remember(archiveEntries, archiveSearch, archiveDate, archiveCategorySelection) {
                                     val tokens = archiveSearch.trim().lowercase().split(Regex("\\s+")).filter { it.isNotBlank() }
                                     archiveEntries.filter { row ->
+                                        row.location.equals(store, ignoreCase = true) &&
                                         (archiveDate.isBlank() || row.date == archiveDate) &&
                                         (archiveCategorySelection.isEmpty() || row.category in archiveCategorySelection) &&
                                         tokens.all { token -> listOf(row.skuName, row.skuCode, row.scannedCode, row.category, row.noExpiryCategory).any { it.contains(token, ignoreCase = true) } }
