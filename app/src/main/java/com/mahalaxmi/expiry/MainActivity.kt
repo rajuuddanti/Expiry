@@ -327,7 +327,7 @@ class MainActivity : ComponentActivity() {
             var loginPassword by remember { mutableStateOf("") }
             var loginError by remember { mutableStateOf("") }
             var loginBusy by remember { mutableStateOf(false) }
-            var showLoginDialog by remember { mutableStateOf((prefs.getString("store", "") ?: "").isBlank()) }
+            var showLoginDialog by remember { mutableStateOf(!storeAccessClient.hasSession()) }
             var archiveSyncBusy by remember { mutableStateOf(false) }
             var showArchiveSyncConfirm by remember { mutableStateOf(false) }
             var archiveSyncProgress by remember { mutableStateOf("") }
@@ -336,11 +336,6 @@ class MainActivity : ComponentActivity() {
             var archiveDate by remember { mutableStateOf("") }
             var archiveCategorySelection by remember { mutableStateOf(setOf<String>()) }
             var showArchiveCategoryPicker by remember { mutableStateOf(false) }
-            var storeDraft by remember { mutableStateOf("") }
-            var storePinInput by remember { mutableStateOf("") }
-            var storePinError by remember { mutableStateOf("") }
-            var showStorePinDialog by remember { mutableStateOf(false) }
-            var showStoreNameDialog by remember { mutableStateOf(false) }
             var showNoExpiryCategoryDialog by remember { mutableStateOf(false) }
             var showNoExpiryConfirmDialog by remember { mutableStateOf(false) }
             var showNoExpiryAlreadyDialog by remember { mutableStateOf(false) }
@@ -598,7 +593,7 @@ class MainActivity : ComponentActivity() {
                 }
                 if (showLoginDialog) {
                     AlertDialog(
-                        onDismissRequest = { if (store.isNotBlank()) showLoginDialog = false },
+                        onDismissRequest = { /* Login is mandatory until a store account is authenticated. */ },
                         title = { Text("Store Login", color = MahalaxmiRed, fontWeight = FontWeight.Bold) },
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -625,7 +620,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }, colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text(if (loginBusy) "SIGNING IN…" else "LOGIN") }
                         },
-                        dismissButton = { if (store.isNotBlank()) TextButton(onClick = { showLoginDialog = false }) { Text("CANCEL") } }
+                        dismissButton = null
                     )
                 }
                 if (showArchiveCategoryPicker) {
@@ -719,65 +714,6 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         dismissButton = null
-                    )
-                }
-                if (showStorePinDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showStorePinDialog = false; storePinInput = ""; storePinError = "" },
-                        title = { Text("Authorize store change") },
-                        text = {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Enter the PIN to change the store name.")
-                                if (storePinError.isNotBlank()) Text(storePinError, color = MahalaxmiRed)
-                                OutlinedTextField(
-                                    value = storePinInput,
-                                    onValueChange = { storePinInput = it.filter(Char::isDigit).take(4) },
-                                    label = { Text("PIN") },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                                    singleLine = true
-                                )
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                if (storePinInput == "3331") {
-                                    storeDraft = store
-                                    storePinInput = ""
-                                    storePinError = ""
-                                    showStorePinDialog = false
-                                    showStoreNameDialog = true
-                                } else {
-                                    storePinInput = ""
-                                    storePinError = "Incorrect PIN. Try again."
-                                }
-                            }) { Text("CONTINUE", color = MahalaxmiRed) }
-                        },
-                        dismissButton = { TextButton(onClick = { showStorePinDialog = false; storePinInput = ""; storePinError = "" }) { Text("CANCEL") } }
-                    )
-                }
-                if (showStoreNameDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showStoreNameDialog = false },
-                        title = { Text("Change store name") },
-                        text = {
-                            OutlinedTextField(
-                                value = storeDraft,
-                                onValueChange = { storeDraft = it },
-                                label = { Text("Store name") },
-                                singleLine = true
-                            )
-                        },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                if (storeDraft.isNotBlank()) {
-                                    store = storeDraft.trim()
-                                    prefs.edit().putString("store", store).apply()
-                                    message = "Store name updated."
-                                }
-                                showStoreNameDialog = false
-                            }) { Text("SAVE", color = MahalaxmiRed) }
-                        },
-                        dismissButton = { TextButton(onClick = { showStoreNameDialog = false }) { Text("CANCEL") } }
                     )
                 }
                 if (showNoExpiryConfirmDialog) {
@@ -1514,10 +1450,6 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.fillMaxWidth(),
                                         singleLine = true
                                     )
-                                    OutlinedButton(
-                                        onClick = { storePinInput = ""; storePinError = ""; showStorePinDialog = true },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) { Text("CHANGE STORE NAME (PIN REQUIRED)") }
                                 }
                             }
                         }
