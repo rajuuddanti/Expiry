@@ -69,4 +69,23 @@ interface ExpiryDao {
     }
     @Query("UPDATE expiry_entries SET syncStatus = 'SYNCED' WHERE id IN (:ids)")
     suspend fun markEntriesSynced(ids: List<String>)
+
+    /** Archive rows are server-sourced snapshots; conflict-ignore preserves the first local copy. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertArchiveEntries(entries: List<ArchiveEntryEntity>): List<Long>
+
+    @Query("SELECT * FROM archive_entries ORDER BY date DESC, time DESC, id DESC")
+    fun observeArchiveEntries(): Flow<List<ArchiveEntryEntity>>
+
+    @Query("SELECT COUNT(*) FROM archive_entries")
+    suspend fun archiveEntryCount(): Int
+
+    @Query("DELETE FROM archive_entries WHERE date < :cutoffDate")
+    suspend fun pruneArchiveBefore(cutoffDate: String)
+
+    @Query("SELECT id FROM archive_entries")
+    suspend fun getArchiveIds(): List<String>
+
+    @Query("SELECT DISTINCT category FROM archive_entries WHERE category <> '' ORDER BY category COLLATE NOCASE")
+    suspend fun getArchiveCategories(): List<String>
 }
