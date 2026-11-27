@@ -8,6 +8,14 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 
 /** Calls the store-access Edge Function. No password or service-role key is stored in Android. */
 class StoreAccessClient(context: Context) {
@@ -19,13 +27,45 @@ class StoreAccessClient(context: Context) {
     data class StoreSession(val token: String, val expiresAt: String, val storeName: String, val mobileNumber: String)
     data class ArchivePage(val rows: List<ArchiveEntryEntity>, val hasMore: Boolean, val nextOffset: Int)
 
-    fun hasSession(): Boolean = !prefs.getString("store_session_token", null).isNullOrBlank()
-    fun sessionToken(): String? = prefs.getString("store_session_token", null)
+    fun hasSession(): Boolean = !sessionToken().isNullOrBlank()
+
+    /** Session bearer token is encrypted with an Android Keystore AES-GCM key. */
+    fun sessionToken(): String? = runCatching {
+        val stored = prefs.getString("store_session_token_encrypted", null) ?: return null
+        val packed = Base64.decode(stored, Base64.NO_WRAP)
+        require(packed.size > 12) { "Stored session is invalid." }
+        val iv = packed.copyOfRange(0, 12)
+        val ciphertext = packed.copyOfRange(12, packed.size)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(128, iv))
+        String(cipher.doFinal(ciphertext), Charsets.UTF_8)
+    }.getOrNull()
+
     fun saveSession(session: StoreSession) {
-        prefs.edit().putString("store_session_token", session.token)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
+        val encrypted = cipher.iv + cipher.doFinal(session.token.toByteArray(Charsets.UTF_8))
+        prefs.edit().putString("store_session_token_encrypted", Base64.encodeToString(encrypted, Base64.NO_WRAP))
+            .remove("store_session_token")
             .putString("store_session_expires_at", session.expiresAt)
             .putString("store_session_mobile", session.mobileNumber)
             .putString("store", session.storeName).apply()
+    }
+
+    private fun getOrCreateKey(): SecretKey {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        (keyStore.getKey("mahamart_store_session_v1", null) as? SecretKey)?.let { return it }
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        generator.init(
+            KeyGenParameterSpec.Builder(
+                "mahamart_store_session_v1",
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+            ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setRandomizedEncryptionRequired(true)
+                .build()
+        )
+        return generator.generateKey()
     }
 
     suspend fun login(mobile: String, password: String): StoreSession = withContext(Dispatchers.IO) {
