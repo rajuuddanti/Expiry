@@ -17,6 +17,10 @@ Android app for recording product expiry checks across Mahalaxmi Mahamart stores
 - [Feature workflow handoff](docs/FEATURE_WORKFLOW_HANDOFF.md) — branch/workflow notes.
 - [Requirements handoff](docs/REQUIREMENTS_HANDOFF_2026-10-26.md) — detailed requirements captured for handoff.
 
+### Current work handoffs
+- [V2.5 login and Data Archive](docs/V2_5_LOGIN_AND_DATA_ARCHIVE_HANDOFF.md) — confirmed requirements, security boundaries, sync rules, and implementation checklist.
+- [Store name normalization](docs/STORE_NAME_NORMALIZATION_HANDOFF.md) — exact mapping source, known variants, and safe Supabase cleanup procedure.
+
 ### Data and backend
 - [Data mapping and import](docs/DATA_MAPPING_AND_IMPORT.md) — SKU/barcode mapping, normalization, and first-match rules.
 - [Schema reference](docs/SCHEMA_REFERENCE.md) — table and field reference.
@@ -44,4 +48,4 @@ Android app for recording product expiry checks across Mahalaxmi Mahamart stores
 
 ## Current branch note
 
-Recent work is on `feature/new-expiry-upload-table`. Latest documented UI fix: the main-screen heading uses today's actual scheduled category names; it should not show an extra literal “Present Day Categories” label. See [the 2026-10-29 implementation log](docs/IMPLEMENTATION_LOG_2026-10-29.md).
+The v2.5 login and Data Archive work is isolated on `feature/v2.5-login-data-archive`, created from `feature/in-app-updates` (the last stable in-app-updates baseline identified for this work). Do not merge it unless explicitly requested. See the two current-work handoffs above.
