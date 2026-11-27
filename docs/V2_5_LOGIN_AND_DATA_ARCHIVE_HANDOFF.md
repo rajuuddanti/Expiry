@@ -109,3 +109,24 @@ Last updated: 2026-11-27 (Asia/Kolkata)
 - Store credential Excel has not yet been supplied in this handoff.
 - No v2.5 login/archive code changes are included in this documentation commit.
 - No Supabase schema or live records were modified by this handoff.
+
+
+## Implementation progress — 2026-11-27
+
+### Backend foundation deployed to the linked Expiry project
+
+- Added private schema tables: `private.store_sessions` and `private.store_archive_sync_state`.
+- Revoked access to the private schema/tables from `PUBLIC`, `anon`, and `authenticated`; only `service_role` receives access.
+- Deployed Edge Function `store-access` (version 1, ACTIVE, `verify_jwt=false`). The function implements:
+  - `login`: verifies mobile/password against `store_accounts` server-side and returns a random 30-day opaque session token; only its SHA-256 hash is stored.
+  - `me`: returns the authenticated store identity.
+  - `archive-start`: starts a per-store sync and checks the 24-hour cooldown.
+  - `archive-page`: returns up to 100 non-deleted records for the authenticated store, with date/category/token filters and pagination.
+  - `archive-complete`: records the successful sync timestamp.
+  - `archive-cancel`: clears an abandoned sync lease.
+- The Android app must call this function using the existing project URL and publishable key; it must never query `store_accounts.trigger` or receive a service-role key.
+- Source migration committed at `supabase/migrations/202611270001_v25_store_login_archive.sql`.
+
+### Important implementation boundary
+
+This is backend groundwork, not a completed v2.5 release. Android login UI/session persistence, local archive Room entity/migration, archive UI and client paging/deduplication/retention are still pending. The current archive completion endpoint trusts the authenticated client to call completion only after it has received every page; strengthen this with server-tracked page progress before production rollout. Add login rate limiting/attempt throttling before production rollout. Do not claim full security or end-to-end testing until these are implemented and tested.
