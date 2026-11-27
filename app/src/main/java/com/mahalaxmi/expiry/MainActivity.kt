@@ -335,8 +335,6 @@ class MainActivity : ComponentActivity() {
             var archiveDate by remember { mutableStateOf("") }
             var archiveCategorySelection by remember { mutableStateOf(setOf<String>()) }
             var showArchiveCategoryPicker by remember { mutableStateOf(false) }
-            var showArchiveDatePicker by remember { mutableStateOf(false) }
-            var loginForArchive by remember { mutableStateOf(false) }
             var storeDraft by remember { mutableStateOf("") }
             var storePinInput by remember { mutableStateOf("") }
             var storePinError by remember { mutableStateOf("") }
@@ -595,7 +593,6 @@ class MainActivity : ComponentActivity() {
                                         prefs.edit().putString("store", session.storeName).apply()
                                         loginPassword = ""
                                         showLoginDialog = false
-                                        loginForArchive = false
                                         if (screen == AppScreen.Archive) archiveSyncMessage = "Signed in as ${session.storeName}. Tap SYNC to recover records."
                                     } catch (error: Exception) {
                                         loginError = error.message ?: "Login failed. Check your details and try again."
@@ -603,7 +600,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }, colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text(if (loginBusy) "SIGNING IN…" else "LOGIN") }
                         },
-                        dismissButton = { if (store.isNotBlank()) TextButton(onClick = { showLoginDialog = false; loginForArchive = false }) { Text("CANCEL") } }
+                        dismissButton = { if (store.isNotBlank()) TextButton(onClick = { showLoginDialog = false }) { Text("CANCEL") } }
                     )
                 }
                 if (showArchiveCategoryPicker) {
@@ -618,14 +615,6 @@ class MainActivity : ComponentActivity() {
                         } },
                         confirmButton = { TextButton(onClick = { showArchiveCategoryPicker = false }) { Text("APPLY", color = MahalaxmiRed) } },
                         dismissButton = { TextButton(onClick = { archiveCategorySelection = emptySet(); showArchiveCategoryPicker = false }) { Text("CLEAR") } })
-                }
-                if (showArchiveDatePicker) {
-                    val today = LocalDate.now(IndiaZone)
-                    val picker = android.app.DatePickerDialog(this@MainActivity, { _, year, month, day -> archiveDate = LocalDate.of(year, month + 1, day).toString() }, today.year, today.monthValue - 1, today.dayOfMonth)
-                    picker.datePicker.maxDate = today.atStartOfDay(IndiaZone).toInstant().toEpochMilli()
-                    picker.setOnDismissListener { showArchiveDatePicker = false }
-                    picker.show()
-                    showArchiveDatePicker = false
                 }
                 if (updateDialogOpen) {
                     val availableUpdate = updateInfo
@@ -1267,7 +1256,7 @@ class MainActivity : ComponentActivity() {
 
                             AppScreen.Archive -> {
                                 val filteredArchive = remember(archiveEntries, archiveSearch, archiveDate, archiveCategorySelection) {
-                                    val tokens = archiveSearch.trim().lowercase().split(Regex("\\\\s+")).filter { it.isNotBlank() }
+                                    val tokens = archiveSearch.trim().lowercase().split(Regex("\\s+")).filter { it.isNotBlank() }
                                     archiveEntries.filter { row ->
                                         (archiveDate.isBlank() || row.date == archiveDate) &&
                                         (archiveCategorySelection.isEmpty() || row.category in archiveCategorySelection) &&
@@ -1282,7 +1271,7 @@ class MainActivity : ComponentActivity() {
                                     Text("${archiveEntries.size} records stored on this device • newest first", color = Color.Gray, fontSize = 12.sp)
                                     Button(onClick = {
                                         if (!storeAccessClient.hasSession()) {
-                                            loginForArchive = true; showLoginDialog = true
+                                            showLoginDialog = true
                                         } else if (!archiveSyncBusy) {
                                             scope.launch {
                                                 archiveSyncBusy = true; archiveSyncProgress = "Starting archive sync…"
@@ -1299,7 +1288,12 @@ class MainActivity : ComponentActivity() {
                                     Text(if (archiveSyncBusy) archiveSyncProgress else archiveSyncMessage, fontSize = 12.sp, color = Color.Gray)
                                     OutlinedTextField(value = archiveSearch, onValueChange = { archiveSearch = it }, label = { Text("Search product / SKU / barcode") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedButton(onClick = { showArchiveDatePicker = true }, modifier = Modifier.weight(1f)) { Text(if (archiveDate.isBlank()) "ALL DATES" else archiveDate, maxLines = 1) }
+                                        OutlinedButton(onClick = {
+                                            val today = LocalDate.now(IndiaZone)
+                                            val picker = android.app.DatePickerDialog(this@MainActivity, { _, year, month, day -> archiveDate = LocalDate.of(year, month + 1, day).toString() }, today.year, today.monthValue - 1, today.dayOfMonth)
+                                            picker.datePicker.maxDate = today.atStartOfDay(IndiaZone).toInstant().toEpochMilli()
+                                            picker.show()
+                                        }, modifier = Modifier.weight(1f)) { Text(if (archiveDate.isBlank()) "ALL DATES" else archiveDate, maxLines = 1) }
                                         OutlinedButton(onClick = { showArchiveCategoryPicker = true }, modifier = Modifier.weight(1f)) { Text(if (archiveCategorySelection.isEmpty()) "ALL CATEGORIES" else "${archiveCategorySelection.size} CATEGORIES", maxLines = 1) }
                                     }
                                     if (archiveDate.isNotBlank() || archiveCategorySelection.isNotEmpty() || archiveSearch.isNotBlank()) TextButton(onClick = { archiveDate = ""; archiveCategorySelection = emptySet(); archiveSearch = "" }) { Text("CLEAR FILTERS") }
