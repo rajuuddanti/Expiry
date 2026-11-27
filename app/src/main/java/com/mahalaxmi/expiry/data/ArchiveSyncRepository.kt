@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.time.ZoneId
 
 /** Explicit, foreground-only archive recovery. Never touches active expiry_entries. */
 class ArchiveSyncRepository(context: Context, private val dao: ExpiryDao) {
@@ -33,7 +34,7 @@ class ArchiveSyncRepository(context: Context, private val dao: ExpiryDao) {
                 offset = page.nextOffset
             }
             // Prune only after every page was retrieved and stored successfully.
-            dao.pruneArchiveBefore(LocalDate.now().minusDays(89).toString())
+            dao.pruneArchiveBefore(LocalDate.now(ZoneId.of("Asia/Kolkata")).minusDays(89).toString())
             access.completeArchiveSync(syncId)
             Result(downloaded, inserted, "Archive sync complete: $inserted new record(s), $downloaded received.")
         } catch (error: Exception) {
