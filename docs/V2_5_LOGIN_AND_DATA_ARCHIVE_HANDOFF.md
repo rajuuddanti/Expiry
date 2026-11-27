@@ -153,3 +153,37 @@ This is backend groundwork, not a completed v2.5 release. Android login UI/sessi
 - User explicitly instructed: **do not make any further Supabase changes without permission**.
 - No Supabase schema, policy, table, function, secret, or live-data changes were made during this Android implementation step.
 - Any additional Supabase work requires asking the user first and waiting for explicit approval.
+
+
+## Android UI progress — 2026-11-27 (continued)
+
+- Added a first-install store login dialog with mobile number and password. Existing installations with a locally saved store name are not blocked by the login dialog.
+- If an existing installation has no session token, the Data Archive SYNC action asks the operator to sign in before requesting archive data.
+- Store session bearer token is now encrypted using an AES-GCM key held in Android Keystore. The password is not persisted.
+- Added the Data Archive screen from History, with manual sync confirmation, progress/result text, local record count, newest-first cards, all-dates/date selection, multi-select category filter, token-order-independent local product/SKU search, and clear filters.
+- Added current app version text below Check for App Updates.
+- Archive retention now uses the Asia/Kolkata business date and removes only old rows from the separate archive table.
+
+### Important verification status and remaining gaps
+
+- No Supabase changes were made after the user's explicit permission boundary.
+- No build, emulator test, or physical-device test has been run. The branch must be built and tested before installation.
+- Archive filters currently operate on the locally cached archive. The backend page request currently retrieves the eligible 90-day store archive without applying the UI's selected date/category/search filters.
+- Subsequent sync still downloads server pages and relies on Room insert-ignore to avoid local duplicates. This is not missing-ID-only retrieval and does not meet the intended egress optimization yet.
+- The current deployed backend's daily completion lock is not independently verified against all pages server-side. Do not represent the daily lock as hardened against a modified client.
+- Login rate limiting and backend brute-force protection remain unimplemented.
+- Existing installations with a local store name but no v2.5 session can continue using the existing app screens; archive recovery requires a one-time sign-in.
+- The token is Keystore-encrypted, but session validation/refresh via the Edge Function `me` action has not yet been wired into app startup. The server still authenticates every archive request.
+
+### Latest implementation commits
+
+- `9cfa573` — archive Room entity
+- `78000f5` — store access API client
+- `75630bb` — Room v5→v6 archive migration
+- `d28ca20` — archive DAO operations
+- `d80e84f` — archive sync repository
+- `891b92d` — login and archive UI initial integration
+- `76ff3a9` — archive search/date picker corrections
+- `7c8dfc2` — Android Keystore token encryption
+- `3d883e6` — manual sync confirmation
+- `eca163f` — India-timezone archive retention
