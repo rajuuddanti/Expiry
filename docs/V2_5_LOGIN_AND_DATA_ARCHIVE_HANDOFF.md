@@ -130,3 +130,26 @@ Last updated: 2026-11-27 (Asia/Kolkata)
 ### Important implementation boundary
 
 This is backend groundwork, not a completed v2.5 release. Android login UI/session persistence, local archive Room entity/migration, archive UI and client paging/deduplication/retention are still pending. The current archive completion endpoint trusts the authenticated client to call completion only after it has received every page; strengthen this with server-tracked page progress before production rollout. Add login rate limiting/attempt throttling before production rollout. Do not claim full security or end-to-end testing until these are implemented and tested.
+
+
+## Android implementation progress — 2026-11-27
+
+### Added on the v2.5 branch
+- `data/StoreAccessClient.kt`: Android client for login, session-token persistence, archive sync start/page/complete/cancel calls. It uses the existing BuildConfig Supabase URL and publishable key; no configuration values were changed.
+- `data/ArchiveEntryEntity.kt`: separate Room entity for server archive snapshots, distinct from active/pending `expiry_entries`.
+- Room database version advanced from 5 to 6 with a non-destructive `MIGRATION_5_6` that creates only the new archive table and indexes.
+- `ExpiryDao` now has conflict-ignore archive inserts, archive observation/count/category/ID queries, and archive-only retention pruning.
+- `data/ArchiveSyncRepository.kt`: explicit foreground paginated retrieval, insert-ignore deduplication, cancel-on-error, and local archive pruning after successful page retrieval.
+
+### Not yet complete
+- Login screen has not yet been wired into MainActivity.
+- History tab does not yet expose the Data Archive screen.
+- Archive search/date/category UI and local filtering remain pending.
+- The server endpoint currently pages all matching server rows; it does not yet accept a local missing-ID cursor. Therefore repeat sync may transfer already-cached rows even though Room ignores duplicates. Do not claim egress-efficient missing-only recovery yet.
+- Server-side completion currently relies on the client to call complete after fetching all pages. Do not treat the daily lock as production-hardened until the server independently tracks page completion.
+- No Android build or device test has been run in this environment.
+
+### Permission boundary
+- User explicitly instructed: **do not make any further Supabase changes without permission**.
+- No Supabase schema, policy, table, function, secret, or live-data changes were made during this Android implementation step.
+- Any additional Supabase work requires asking the user first and waiting for explicit approval.
