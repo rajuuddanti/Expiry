@@ -329,6 +329,7 @@ class MainActivity : ComponentActivity() {
             var loginBusy by remember { mutableStateOf(false) }
             var showLoginDialog by remember { mutableStateOf((prefs.getString("store", "") ?: "").isBlank()) }
             var archiveSyncBusy by remember { mutableStateOf(false) }
+            var showArchiveSyncConfirm by remember { mutableStateOf(false) }
             var archiveSyncProgress by remember { mutableStateOf("") }
             var archiveSyncMessage by remember { mutableStateOf("Archive is stored locally. Tap SYNC to recover server records.") }
             var archiveSearch by remember { mutableStateOf("") }
@@ -571,6 +572,30 @@ class MainActivity : ComponentActivity() {
             }
 
             MaterialTheme {
+                if (showArchiveSyncConfirm) {
+                    AlertDialog(
+                        onDismissRequest = { showArchiveSyncConfirm = false },
+                        title = { Text("Sync Data Archive?") },
+                        text = { Text("This will download the latest 90 days of eligible records for $store to this device. Archive sync is limited to once per store per day. Continue?") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showArchiveSyncConfirm = false
+                                if (!archiveSyncBusy) scope.launch {
+                                    archiveSyncBusy = true; archiveSyncProgress = "Starting archive sync…"
+                                    try {
+                                        val result = archiveRepository.sync { progress ->
+                                            archiveSyncProgress = "${progress.phase}: ${progress.downloaded} received • ${progress.inserted} new"
+                                        }
+                                        archiveSyncMessage = result.message
+                                    } catch (error: Exception) {
+                                        archiveSyncMessage = "Sync incomplete. ${error.message ?: "Please try again."}"
+                                    } finally { archiveSyncBusy = false; archiveSyncProgress = "" }
+                                }
+                            }) { Text("SYNC NOW", color = MahalaxmiRed) }
+                        },
+                        dismissButton = { TextButton(onClick = { showArchiveSyncConfirm = false }) { Text("CANCEL") } }
+                    )
+                }
                 if (showLoginDialog) {
                     AlertDialog(
                         onDismissRequest = { if (store.isNotBlank()) showLoginDialog = false },
@@ -1270,19 +1295,8 @@ class MainActivity : ComponentActivity() {
                                     }
                                     Text("${archiveEntries.size} records stored on this device • newest first", color = Color.Gray, fontSize = 12.sp)
                                     Button(onClick = {
-                                        if (!storeAccessClient.hasSession()) {
-                                            showLoginDialog = true
-                                        } else if (!archiveSyncBusy) {
-                                            scope.launch {
-                                                archiveSyncBusy = true; archiveSyncProgress = "Starting archive sync…"
-                                                try {
-                                                    val result = archiveRepository.sync { progress -> archiveSyncProgress = "${progress.phase}: ${progress.downloaded} received • ${progress.inserted} new" }
-                                                    archiveSyncMessage = result.message
-                                                } catch (error: Exception) {
-                                                    archiveSyncMessage = "Sync incomplete; daily lock was not intentionally consumed. ${error.message ?: "Please try again."}"
-                                                } finally { archiveSyncBusy = false; archiveSyncProgress = "" }
-                                            }
-                                        }
+                                        if (!storeAccessClient.hasSession()) showLoginDialog = true
+                                        else if (!archiveSyncBusy) showArchiveSyncConfirm = true
                                     }, enabled = !archiveSyncBusy, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text(if (archiveSyncBusy) "SYNCING…" else "SYNC ARCHIVE") }
                                     if (archiveSyncBusy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = MahalaxmiRed)
                                     Text(if (archiveSyncBusy) archiveSyncProgress else archiveSyncMessage, fontSize = 12.sp, color = Color.Gray)
