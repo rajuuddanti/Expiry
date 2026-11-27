@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [ProductMasterEntity::class, ExpiryEntryEntity::class], version = 5, exportSchema = false)
+@Database(entities = [ProductMasterEntity::class, ExpiryEntryEntity::class, ArchiveEntryEntity::class], version = 6, exportSchema = false)
 abstract class ExpiryDatabase : RoomDatabase() {
     abstract fun expiryDao(): ExpiryDao
     companion object {
@@ -37,11 +37,19 @@ abstract class ExpiryDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE expiry_entries ADD COLUMN noExpiryCategory TEXT NOT NULL DEFAULT ''")
             }
         }
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS archive_entries (id TEXT NOT NULL PRIMARY KEY, location TEXT NOT NULL, skuCode TEXT NOT NULL, skuName TEXT NOT NULL, scannedCode TEXT NOT NULL, quantity INTEGER NOT NULL, expiryDate TEXT NOT NULL, category TEXT NOT NULL, date TEXT NOT NULL, time TEXT NOT NULL, createdAt TEXT NOT NULL, expiry TEXT NOT NULL, noExpiryCategory TEXT NOT NULL, sessionStart TEXT NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_archive_entries_date ON archive_entries(date)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_archive_entries_category ON archive_entries(category)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_archive_entries_location_date ON archive_entries(location, date)")
+            }
+        }
         @Volatile private var INSTANCE: ExpiryDatabase? = null
         fun getInstance(context: Context): ExpiryDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(context.applicationContext, ExpiryDatabase::class.java, "mahalaxmi_expiry.db")
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build().also { INSTANCE = it }
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build().also { INSTANCE = it }
             }
     }
 }
