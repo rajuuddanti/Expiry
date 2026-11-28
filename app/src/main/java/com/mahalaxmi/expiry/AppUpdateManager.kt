@@ -24,47 +24,23 @@ data class AppUpdate(
 )
 
 object AppUpdateManager {
-    private const val RELEASE_API =
-        "https://api.github.com/repos/rajuuddanti/Expiry/releases/latest"
-    private const val MANIFEST_ASSET = "update.json"
+    private const val MANIFEST_URL =
+        "https://raw.githubusercontent.com/rajuuddanti/Mahalaxmi-App-Updates/main/Expiry-Manager/update.json"
 
     suspend fun checkForUpdate(): AppUpdate? = withContext(Dispatchers.IO) {
-        val release = readJson(RELEASE_API)
-        val assets = release.optJSONArray("assets")
-            ?: throw IllegalStateException("The latest release has no assets.")
-        var manifestUrl: String? = null
-        var apkUrl: String? = null
-        for (index in 0 until assets.length()) {
-            val asset = assets.getJSONObject(index)
-            when (asset.optString("name")) {
-                MANIFEST_ASSET -> manifestUrl = asset.optString("browser_download_url")
-                else -> if (asset.optString("name").endsWith(".apk", true)) {
-                    apkUrl = asset.optString("browser_download_url")
-                }
-            }
-        }
-        val url = manifestUrl ?: throw IllegalStateException("Release is missing update.json.")
-        val manifest = readJson(url)
+        val manifest = readJson(MANIFEST_URL)
         val targetCode = manifest.optInt("versionCode", -1)
         if (targetCode <= BuildConfig.VERSION_CODE) return@withContext null
-        val assetName = manifest.optString("apkAssetName")
-        val resolvedApk = if (assetName.isNotBlank()) {
-            var selected: String? = null
-            for (index in 0 until assets.length()) {
-                val asset = assets.getJSONObject(index)
-                if (asset.optString("name") == assetName) {
-                    selected = asset.optString("browser_download_url")
-                    break
-                }
-            }
-            selected
-        } else apkUrl
+
+        val apkUrl = manifest.optString("apkUrl").takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("Update manifest is missing apkUrl.")
+
         AppUpdate(
             versionCode = targetCode,
-            versionName = manifest.optString("versionName", release.optString("tag_name")),
-            mandatory = true,
-            releaseNotes = manifest.optString("releaseNotes", release.optString("body")),
-            apkUrl = resolvedApk ?: throw IllegalStateException("Release is missing the APK asset."),
+            versionName = manifest.optString("versionName", "Unknown"),
+            mandatory = manifest.optBoolean("mandatory", false),
+            releaseNotes = manifest.optString("releaseNotes", "App improvements."),
+            apkUrl = apkUrl,
             sha256 = manifest.optString("sha256")
         )
     }
@@ -152,8 +128,7 @@ object AppUpdateManager {
         val connection = (URL(address).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15000
             readTimeout = 20000
-            setRequestProperty("Accept", "application/vnd.github+json")
-            setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+            setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "MahaMart-Expiry-Manager")
         }
         try {
