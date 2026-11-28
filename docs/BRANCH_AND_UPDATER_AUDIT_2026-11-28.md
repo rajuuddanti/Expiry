@@ -67,7 +67,7 @@ Inspected:
 - `res/xml/file_paths.xml`
 - `app/build.gradle.kts`
 
-The 2.5.1 baseline updater (at the branch base commit) used:
+The **0.2.4 baseline updater** on `feature/in-app-updates` (branch base commit) used:
 - GitHub Releases API: `https://api.github.com/repos/rajuuddanti/Expiry/releases/latest`
 - It searched the latest release assets for `update.json` and the APK asset.
 - It selected the APK by `apkAssetName` when present.
@@ -124,13 +124,56 @@ The common secret `STORE_CHANGE_AUTH_PIN` has been created by the user in Supaba
 ## Recommended next implementation sequence
 
 1. Treat 2.5.2 / versionCode 8 as the current branch source baseline, not as proof of a published or installed release.
-2. Before changing updater behavior, confirm that the public static manifest and APK hosting location are the intended second source and that the bridge release from 2.5.1 to 2.5.2 is still available through the old GitHub Releases endpoint.
+2. Before changing updater behavior, confirm that the public static manifest and APK hosting location are the intended second source and that the bridge release from 0.2.4 to 2.5.2 is still available through the old GitHub Releases endpoint.
 3. Decide whether 2.5.2 should support true primary-to-secondary fallback. Current code only uses the static source.
 4. Keep the common store-switch PIN server-side. Add verification to the existing `store-access` flow only after inspecting the deployed function and obtaining explicit permission for any live Supabase changes.
 5. Implement Android ID hashing, assignment recovery, cross-store prompt, and store-specific Device ID display/update in a separate scoped change.
-6. Build and test the APK locally, verify package/version/signing compatibility, then test an in-place update from an actual 2.5.1 installation.
+6. Build and test the APK locally, verify package/version/signing compatibility, then test an in-place update from an actual 0.2.4 installation.
 7. Test login, archive, store-switch denial/approval, return-to-previous-store ID reuse, and local data preservation on test devices.
 
 ## Verification boundary
 
 This audit is based on the current GitHub branch source and documentation. It is not a Gradle build, CI run, APK inspection, live manifest fetch, Edge Function test, Supabase schema inspection, release check, or physical-device test. Those remain unverified.
+
+
+## Explicit branch comparison — confirmed baseline
+
+The requested comparison is:
+
+- **Present branch:** `feature/v2.5-login-data-archive`
+- **Comparison/stable branch:** `feature/in-app-updates`
+- The comparison branch's Gradle config is `versionName = 0.2.4`, `versionCode = 5`.
+- The present branch's Gradle config is `versionName = 2.5.2`, `versionCode = 8`.
+- Both use application ID `com.mahalaxmi.expiry`.
+- Comparison base commit: `eab8d2766d89312826e697f70d5d2aa4f1ce8d71`.
+- Present source commit reviewed: `8aa2c7ad4a0a5e223d8fc91e8f5fed67f8608ff9`.
+- GitHub compare reported present branch 56 commits ahead and 0 behind at the time of this comparison (the count includes documentation-only commits already on the present branch).
+
+### Exact updater delta
+
+| Area | `feature/in-app-updates` (0.2.4) | `feature/v2.5-login-data-archive` (2.5.2) |
+|---|---|---|
+| Update metadata source | GitHub Releases API `rajuuddanti/Expiry/releases/latest` | Static raw manifest in `Mahalaxmi-App-Updates` |
+| Manifest discovery | Search release assets for `update.json` | Direct fixed URL |
+| APK resolution | Prefer asset named by `apkAssetName`; otherwise first APK asset | Direct `apkUrl` field |
+| Manifest fallback | Version name/release notes can fall back to release tag/body | Defaults to `Unknown` / `App improvements.` |
+| Mandatory flag | Hardcoded `true` in returned update | Parsed from manifest |
+| UI handling of mandatory | Non-dismissible update dialog | Still non-dismissible; parsed flag currently has no UI effect |
+| Download | Same cache download path | Same cache download path |
+| SHA-256 | Verify if nonblank | Verify if nonblank |
+| Install | Existing FileProvider + Android package installer | Same |
+| Manual check | Same Settings action | Same Settings action, plus visible installed version text |
+
+### Important rollout implication
+
+The 0.2.4 APK's updater still expects the old GitHub Release layout. For an existing 0.2.4 installation to discover 2.5.2, a published release in `rajuuddanti/Expiry` must still contain a usable `update.json` and the matching APK asset. If `apkAssetName` is absent in that old manifest, the 0.2.4 code falls back to the first APK asset it finds. Do not assume the bridge works until the actual published release assets and manifest are checked and an in-place update is tested.
+
+After 2.5.2 is installed, its updater reads the static `Mahalaxmi-App-Updates` manifest. The current source does **not** query GitHub Releases first and does **not** implement fallback between both sources.
+
+### Unchanged updater plumbing
+
+The 1.2-second launch check, manual Settings check, progress UI, cache destination, SHA-256 implementation, FileProvider authority, install permission handling, and Android package-installer handoff remain materially the same in the inspected source. The current updater changes the metadata discovery/resolution model, not the APK installation mechanism.
+
+### Verification not performed
+
+No live GitHub release/asset/manifest request, build, APK signature comparison, install, or physical-device update test was performed as part of this branch-source comparison.
