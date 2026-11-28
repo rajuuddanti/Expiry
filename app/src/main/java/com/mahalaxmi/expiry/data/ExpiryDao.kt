@@ -67,7 +67,13 @@ interface ExpiryDao {
         clearProductMaster()
         products.chunked(400).forEach { upsertProducts(it) }
     }
-    @Query("UPDATE expiry_entries SET syncStatus = 'SYNCED' WHERE id IN (:ids)")
+    @Query("UPDATE expiry_entries SET lastSyncAttemptAt = :attemptedAt, lastSyncError = NULL WHERE id IN (:ids)")
+    suspend fun markSyncAttempt(ids: List<String>, attemptedAt: String)
+
+    @Query("UPDATE expiry_entries SET lastSyncAttemptAt = :attemptedAt, lastSyncError = :error WHERE id IN (:ids)")
+    suspend fun markSyncFailed(ids: List<String>, error: String, attemptedAt: String)
+
+    @Query("UPDATE expiry_entries SET syncStatus = 'SYNCED', lastSyncError = NULL WHERE id IN (:ids)")
     suspend fun markEntriesSynced(ids: List<String>)
 
     /** Archive rows are server-sourced snapshots; conflict-ignore preserves the first local copy. */
