@@ -37,6 +37,8 @@ Android app for recording product expiry checks across Mahalaxmi Mahamart stores
 - [Implementation log — 2026-10-29](docs/IMPLEMENTATION_LOG_2026-10-29.md)
 - [Implementation log — 2026-10-31](docs/IMPLEMENTATION_LOG_2026-10-31.md)
 
+- [Git push command convention](docs/GIT_PUSH_COMMAND_CONVENTION.md) — defines shorthand such as “push .md files” to mean push all relevant project files, not only Markdown.
+
 ## Important project guardrails
 
 - Verify the actual branch, commit, and source before changing code; branches may diverge.
