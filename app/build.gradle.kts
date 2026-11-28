@@ -9,9 +9,26 @@ plugins {
 
 val localProperties = Properties()
 val localPropertiesFile = rootProject.file("local.properties")
-if (localPropertiesFile.exists()) {
-    localPropertiesFile.inputStream().use { localProperties.load(it) }
+if (!localPropertiesFile.exists()) {
+    throw GradleException(
+        "Missing local.properties in the project root. Create it using local.properties.example " +
+            "and add SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY."
+    )
 }
+localPropertiesFile.inputStream().use { localProperties.load(it) }
+
+fun requiredLocalProperty(name: String): String {
+    return localProperties.getProperty(name)
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: throw GradleException("Missing $name in the root local.properties file.")
+}
+
+val supabaseUrl = requiredLocalProperty("SUPABASE_URL")
+val supabasePublishableKey = requiredLocalProperty("SUPABASE_PUBLISHABLE_KEY")
+
+fun String.asBuildConfigString(): String =
+    "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 android {
     namespace = "com.mahalaxmi.expiry"
@@ -22,8 +39,8 @@ android {
         targetSdk = 35
         versionCode = 8
         versionName = "2.5.2"
-        buildConfigField("String", "SUPABASE_URL", "\"" + localProperties.getProperty("SUPABASE_URL", "https://tmdswprfiaiywzrwzucj.supabase.co") + "\"")
-        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"" + localProperties.getProperty("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_3Z-QGbnE36Tgo8Z8UB_dSw_9zs1b_Mu") + "\"")
+        buildConfigField("String", "SUPABASE_URL", supabaseUrl.asBuildConfigString())
+        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", supabasePublishableKey.asBuildConfigString())
     }
     buildFeatures {
         compose = true
