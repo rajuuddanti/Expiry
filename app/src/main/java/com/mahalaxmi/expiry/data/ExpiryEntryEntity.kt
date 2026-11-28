@@ -31,5 +31,7 @@ data class ExpiryEntryEntity(
     val deletedAt: String? = null,
     val syncStatus: String = "PENDING",
     val expiry: String = "YES",
-    val noExpiryCategory: String = ""
+    val noExpiryCategory: String = "",
+    val lastSyncAttemptAt: String? = null,
+    val lastSyncError: String? = null
 )
