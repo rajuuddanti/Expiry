@@ -8,9 +8,9 @@ Deliver one bridge update to existing installations through the update path they
 
 ## Agreed rollout
 
-1. Current release line: 2.5.1.
-2. Implement dual-source update checking in 2.5.2.
-3. Keep the existing `rajuuddanti/Expiry` repository public while older installations receive 2.5.2 through their existing updater.
+1. Current stable installation baseline: 0.2.4 (versionCode 5) on `feature/in-app-updates`.
+2. The 2.5.2 source (versionCode 8) switches update discovery to the static manifest host.
+3. Keep the existing `rajuuddanti/Expiry` repository public while existing 0.2.4 installations receive 2.5.2 through their existing GitHub Releases updater.
 4. The user verifies that all intended devices have updated to 2.5.2.
 5. Only after that confirmation, the user may change `Expiry` repository visibility to private.
 6. Version 2.5.2 and later must retrieve update metadata and APKs from the second source without depending on anonymous access to the private repository.
@@ -45,19 +45,19 @@ Do not treat a private raw GitHub URL as a working fallback. Do not expose priva
 - Do not publish a manifest pointing to an APK that has not actually been uploaded.
 - Calculate SHA-256 from the exact APK asset being served.
 - Preserve applicationId/package ID and signing certificate so Android can install the update over the existing app.
-- Use a higher versionCode than 2.5.1.
+- Use a versionCode higher than the installed 0.2.4 baseline (5); current 2.5.2 source is versionCode 8.
 - Do not uninstall the app as part of the update. Confirm Room/local data migration and retention on test devices.
 - Android still requires the user to approve sideloaded package installation; the updater cannot silently install.
 
 ## Verification checklist
 
 - [ ] Inspect the actual active branch and current updater implementation before editing.
-- [ ] Confirm the 2.5.1 updater's existing primary URL and response format; ensure it can discover the 2.5.2 bridge build while the repo is public.
+- [ ] Confirm the 0.2.4 updater's existing GitHub Releases API and asset manifest format; ensure it can discover the 2.5.2 bridge build while `rajuuddanti/Expiry` is public.
 - [ ] Implement and review primary-to-secondary fallback in 2.5.2.
 - [ ] Confirm the secondary endpoint works without any client-side secret.
 - [ ] Build 2.5.2 and verify APK package ID, versionCode/versionName, and signing certificate.
 - [ ] Publish the 2.5.2 APK and matching metadata to the existing primary path.
-- [ ] Test update detection/download/hash/install from an actual 2.5.1 installation.
+- [ ] Test update detection/download/hash/install from an actual 0.2.4 installation.
 - [ ] Confirm local Room data and settings remain after in-place upgrade.
 - [ ] Test fallback by making the primary endpoint unavailable in a controlled test.
 - [ ] Track rollout until the user confirms all target devices are on 2.5.2.
@@ -75,11 +75,11 @@ The current implementation was inspected in `AppUpdateManager.kt` and `MainActiv
 
 ### Bridge behavior now in source
 
-- The 2.5.1 baseline source reads the latest published GitHub Release from `rajuuddanti/Expiry/releases/latest`, finds `update.json`, and resolves the APK asset.
+- The 0.2.4 baseline source reads the latest published GitHub Release from `rajuuddanti/Expiry/releases/latest`, finds `update.json`, and resolves the APK asset.
 - The current 2.5.2 source (versionCode 8) no longer queries the Releases API. It reads one static manifest from:
   `https://raw.githubusercontent.com/rajuuddanti/Mahalaxmi-App-Updates/main/Expiry-Manager/update.json`
 - The current manifest schema expects `versionCode`, `versionName`, `mandatory`, `releaseNotes`, `apkUrl`, and `sha256`. It does not use the old `apkAssetName` field.
-- Therefore, the intended staged bridge is represented in source: old 2.5.1 clients use the old Releases API to discover 2.5.2; after 2.5.2 is installed, its updater reads the static update host.
+- Therefore, the intended staged bridge is represented in source: old 0.2.4 clients use the old Releases API to discover 2.5.2; after 2.5.2 is installed, its updater reads the static update host.
 
 ### Important correction to the original plan
 
@@ -96,3 +96,12 @@ The current 2.5.2 code uses the static endpoint as its **only** update source. I
 - Do not make `rajuuddanti/Expiry` private until the user confirms the 2.5.2 bridge rollout is complete and the static manifest/APK host has been verified from an updated device.
 
 See `docs/BRANCH_AND_UPDATER_AUDIT_2026-11-28.md` for detailed source findings and verification boundaries.
+
+
+## Corrected branch/version baseline
+
+The baseline branch is `feature/in-app-updates`, whose Gradle config is versionName `0.2.4`, versionCode `5`. The present branch is `feature/v2.5-login-data-archive`, whose Gradle config is versionName `2.5.2`, versionCode `8`.
+
+The intended bridge is therefore **0.2.4 → 2.5.2**, not 2.5.1 → 2.5.2. The old 0.2.4 updater expects a published GitHub Release containing `update.json` and an APK asset. The 2.5.2 updater reads the static `Mahalaxmi-App-Updates` manifest directly. The current 2.5.2 source has no dual-source fallback.
+
+See `docs/BRANCH_AND_UPDATER_AUDIT_2026-11-28.md` for the source-level comparison and caveats.
