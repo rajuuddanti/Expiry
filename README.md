@@ -4,11 +4,12 @@ Android app for recording product expiry checks across Mahalaxmi Mahamart stores
 
 ## New chat / developer handoff
 
-**Start with `docs/CURRENT_HANDOFF.md`, then read `docs/NEXT_CHAT_HANDOFF.md`.** These are the quickest routes to understand the latest recorded project state and resume work without relying on an old chat.
+**Start with `docs/FRESH_CHAT_BUILD_INSTRUCTIONS.md`, then read `docs/CURRENT_HANDOFF.md` and `docs/NEXT_CHAT_HANDOFF.md`.** The fresh-chat guide explains how to reconnect Git and Supabase, collect project-specific build inputs, handle Auth steps, and build the APK safely.
 
 ## Documentation index
 
 ### Start and resume
+- [Fresh chat build instructions](docs/FRESH_CHAT_BUILD_INSTRUCTIONS.md) — exact workflow for a new ChatGPT chat: connect Git/Supabase, ask for project URL and publishable key when needed, identify manual Auth actions, run verified SQL/functions, and build the APK.
 - [Current project handoff](docs/CURRENT_HANDOFF.md) — current decisions, branch context, risks, and next steps.
 - [Next-chat handoff](docs/NEXT_CHAT_HANDOFF.md) — copy-ready instructions for a fresh ChatGPT chat.
 - [Project context](docs/PROJECT_CONTEXT.md) — purpose, requirements, and core app behavior.
@@ -28,8 +29,7 @@ Android app for recording product expiry checks across Mahalaxmi Mahamart stores
 - [Schema reference](docs/SCHEMA_REFERENCE.md) — table and field reference.
 - [SQL reference](docs/SQL_REFERENCE.md) — SQL notes; verify against the current backend before running.
 - [Supabase schema handoff](docs/SUPABASE_SCHEMA_HANDOFF.md) — recorded Supabase schema decisions.
-- [Supabase Android setup](docs/SUPABASE_ANDROID_SETUP.md) — app configuration and setup notes.
-- [Supabase project properties template](config/supabase-project.example.properties) — placeholder URL and publishable-key properties; copy into ignored local.properties and replace locally.
+- [Supabase Android setup](docs/SUPABASE_ANDROID_SETUP.md) — historical app configuration and setup notes; verify against v2.5.
 - [Expiry upload security plan](docs/EXPIRY_UPLOAD_SECURITY_PLAN.md) — security considerations for upload workflows.
 - [Product master daily sync](docs/PRODUCT_MASTER_DAILY_SYNC.md) — historical sync design; verify it against current code and decisions before relying on it.
 
