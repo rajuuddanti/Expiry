@@ -32,6 +32,10 @@ class SupabaseSyncRepository(context: Context, private val dao: ExpiryDao) {
 
         var uploaded = 0
         for (batch in pending.chunked(100)) {
+            val attemptedAt = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC).toString()
+            val batchIds = batch.map { it.id }
+            dao.markSyncAttempt(batchIds, attemptedAt)
+            try {
             val payload = JSONArray()
             batch.forEach { entry ->
                 payload.put(JSONObject().apply {
@@ -61,8 +65,13 @@ class SupabaseSyncRepository(context: Context, private val dao: ExpiryDao) {
                 "resolution=merge-duplicates,return=minimal",
                 null
             )
-            dao.markEntriesSynced(batch.map { it.id })
+            dao.markEntriesSynced(batchIds)
             uploaded += batch.size
+            } catch (error: Exception) {
+                val reason = (error.message ?: error.javaClass.simpleName).take(1000)
+                dao.markSyncFailed(batchIds, reason, attemptedAt)
+                throw error
+            }
         }
         UploadResult(uploaded, "Uploaded $uploaded expiry record(s) to Supabase.")
     }
