@@ -203,3 +203,16 @@ The earlier implementation incorrectly treated a locally saved v2.4 store name a
 - The encrypted session is reused on subsequent launches, so staff are not asked to log in every time.
 - Removed the PIN-protected Change Store Name dialog and its Settings button. Store identity is assigned by the registered account, not manually edited on the device.
 - No Supabase changes were made for this correction.
+
+
+## Current source audit — 2026-11-28
+
+See `docs/BRANCH_AND_UPDATER_AUDIT_2026-11-28.md` for the full source audit. This section supersedes earlier progress bullets above wherever they describe work as still pending before the Android UI integration.
+
+- Audited branch HEAD: `8aa2c7ad4a0a5e223d8fc91e8f5fed67f8608ff9` (before the audit documentation commits).
+- Current Android source version: `2.5.2`, versionCode `8`; application ID remains `com.mahalaxmi.expiry`.
+- The current `MainActivity` includes the mandatory Store Login dialog, Data Archive screen, archive sync confirmation/progress, and installed-version display.
+- `StoreAccessClient.hasSession()` checks for a locally decryptable nonblank token. It does not validate the token with the server `me` action at app startup; session expiry/revocation handling remains a gap.
+- The user has confirmed the common Store Change Authorization PIN secret exists in Supabase Edge Function Secrets. The current app/backend source has not yet implemented PIN verification or cross-store switching.
+- The separate device identity / sequential store-specific Device ID feature remains design-only; no Android ID hashing or Device ID allocation is implemented.
+- Do not infer build, release, update, or physical-device success from the source version or commits.
