@@ -1,3 +1,5 @@
+> **Branch/version scope correction (2026-11-28):** The setup steps below describe the original updater on `feature/in-app-updates` (stable app version `0.2.4`, versionCode `5`). They are not the updater implementation currently present on `feature/v2.5-login-data-archive` (app version `2.5.2`, versionCode `8`). The 2.5 branch reads a static manifest from `Mahalaxmi-App-Updates/Expiry-Manager/update.json` and expects a direct `apkUrl`; it no longer queries the GitHub Releases API. See `docs/BRANCH_AND_UPDATER_AUDIT_2026-11-28.md` for the comparison. The old implementation hardcodes updates as mandatory and does not use the manifest's `mandatory` value to control dialog dismissal, despite the earlier wording below.
+ 
 # In-app update channel — setup and release procedure
 
 ## Current implementation
