@@ -1,0 +1,6 @@
+# Copy this file to local.properties in the project root.
+# Replace the placeholders with the existing values for your Supabase project.
+# Never commit local.properties or put service-role keys in the Android app.
+
+SUPABASE_URL=YOUR_EXISTING_SUPABASE_URL
+SUPABASE_PUBLISHABLE_KEY=YOUR_EXISTING_SUPABASE_PUBLISHABLE_KEY
