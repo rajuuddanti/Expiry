@@ -387,3 +387,23 @@ Expiry entries remain saved in Room DB until a successful server acknowledgement
 
 ### Next implementation discussion
 Before coding, choose whether the target is a soft warning/throttle or a strict application-side global budget. A reliable global budget would require a centralized coordinator/server-side accounting mechanism shared by all devices. Do not implement or alter Supabase until the user explicitly approves.
+
+
+## 2026-11-28 — version 2.5.2 updater rollout plan (decision; implementation pending)
+
+The user confirmed the rollout approach:
+- Current installed release line is 2.5.1.
+- Build 2.5.2 with dual-source update checking.
+- Keep the existing `Expiry` repository public during the migration so older installed builds can discover and install 2.5.2 through their existing updater path.
+- After the user confirms all devices have reached 2.5.2, the user will make the `Expiry` repository private.
+- Version 2.5.2 must then use its second update source as fallback, independently of the private repository's visibility.
+
+Implementation constraints:
+- Do not require repeated manual reinstallations. The goal is one in-app bridge update from the existing public updater path.
+- Preserve the existing package ID, signing identity, Room data, Supabase configuration, and app behavior.
+- Do not embed a GitHub token or other private credential in the APK. A private GitHub source cannot be fetched directly by an unauthenticated client; the second source must be a genuinely public endpoint or a secure intermediary that does not expose credentials.
+- Keep the existing public update endpoint operational until the user confirms rollout is complete. Do not change repository visibility automatically.
+- Ensure the fallback is attempted for network failures, HTTP errors (including 404), and invalid/unparseable manifest responses. Validate the manifest and APK SHA-256 before handing the APK to Android's installer.
+- Maintain monotonically increasing versionCode and confirm same-signature in-place upgrades. Android package installation still requires user confirmation.
+
+Status: agreed architecture only. Dual-source updater code, 2.5.2 APK build, release publication, device rollout, and fallback test are not verified by this documentation update.
