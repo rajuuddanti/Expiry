@@ -19,6 +19,7 @@ Android app for recording product expiry checks across Mahalaxmi Mahamart stores
 
 ### Current work handoffs
 - [V2.5 login and Data Archive](docs/V2_5_LOGIN_AND_DATA_ARCHIVE_HANDOFF.md) — confirmed requirements, security boundaries, sync rules, and implementation checklist.
+- [Fresh-project rebuild audit](docs/FRESH_PROJECT_REBUILD_AUDIT.md) — repository inventory, backend gaps, security rules, and safe fresh-project rebuild plan. This is an audit, not yet a verified one-command rebuild.
 - [Store name normalization](docs/STORE_NAME_NORMALIZATION_HANDOFF.md) — exact mapping source, known variants, and safe Supabase cleanup procedure.
 
 ### Data and backend
@@ -50,4 +51,4 @@ Android app for recording product expiry checks across Mahalaxmi Mahamart stores
 
 ## Current branch note
 
-The v2.5 login and Data Archive work is isolated on `feature/v2.5-login-data-archive`, created from `feature/in-app-updates` (the last stable in-app-updates baseline identified for this work). Do not merge it unless explicitly requested. See the two current-work handoffs above.
+The v2.5 login and Data Archive work is isolated on `feature/v2.5-login-data-archive`, created from `feature/in-app-updates` (the last stable in-app-updates baseline identified for this work). Do not merge it unless explicitly requested. See the current-work handoffs above.
