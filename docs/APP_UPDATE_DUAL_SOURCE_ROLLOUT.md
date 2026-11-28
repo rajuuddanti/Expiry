@@ -67,3 +67,32 @@ Do not treat a private raw GitHub URL as a working fallback. Do not expose priva
 ## Current status
 
 This file records the agreed architecture and rollout sequence only. It does not mean dual-source updater code has been implemented, 2.5.2 has been built or published, devices have updated, or the private-source fallback has been tested.
+
+
+## Actual source audit — 2026-11-28
+
+The current implementation was inspected in `AppUpdateManager.kt` and `MainActivity.kt` on `feature/v2.5-login-data-archive`.
+
+### Bridge behavior now in source
+
+- The 2.5.1 baseline source reads the latest published GitHub Release from `rajuuddanti/Expiry/releases/latest`, finds `update.json`, and resolves the APK asset.
+- The current 2.5.2 source (versionCode 8) no longer queries the Releases API. It reads one static manifest from:
+  `https://raw.githubusercontent.com/rajuuddanti/Mahalaxmi-App-Updates/main/Expiry-Manager/update.json`
+- The current manifest schema expects `versionCode`, `versionName`, `mandatory`, `releaseNotes`, `apkUrl`, and `sha256`. It does not use the old `apkAssetName` field.
+- Therefore, the intended staged bridge is represented in source: old 2.5.1 clients use the old Releases API to discover 2.5.2; after 2.5.2 is installed, its updater reads the static update host.
+
+### Important correction to the original plan
+
+The current 2.5.2 code uses the static endpoint as its **only** update source. It does not try the old primary endpoint first and fall back to the static source. The primary-to-secondary fallback checklist above is not implemented in the current code. If true fallback is still required, it needs a separate code change.
+
+### Current code behavior and release cautions
+
+- Automatic update check runs about 1.2 seconds after launch.
+- A newer version opens a non-dismissible dialog. The current UI says “Update required” regardless of the manifest's `mandatory` value; the value is parsed but not used to control dismissal.
+- APK download uses the manifest's direct `apkUrl`.
+- SHA-256 is checked only when `sha256` is nonblank. Always supply a correct hash for a release.
+- APK installation is handed to Android through FileProvider. Android still displays its package installer confirmation.
+- The app's version source at audit time is 2.5.2 / versionCode 8. This is not evidence that 2.5.2 has been published or installed on every device.
+- Do not make `rajuuddanti/Expiry` private until the user confirms the 2.5.2 bridge rollout is complete and the static manifest/APK host has been verified from an updated device.
+
+See `docs/BRANCH_AND_UPDATER_AUDIT_2026-11-28.md` for detailed source findings and verification boundaries.
