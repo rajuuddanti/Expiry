@@ -20,8 +20,8 @@ android {
         applicationId = "com.mahalaxmi.expiry"
         minSdk = 23
         targetSdk = 35
-        versionCode = 7
-        versionName = "2.5.1"
+        versionCode = 8
+        versionName = "2.5.2"
         buildConfigField("String", "SUPABASE_URL", "\"" + localProperties.getProperty("SUPABASE_URL", "https://tmdswprfiaiywzrwzucj.supabase.co") + "\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"" + localProperties.getProperty("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_3Z-QGbnE36Tgo8Z8UB_dSw_9zs1b_Mu") + "\"")
     }
