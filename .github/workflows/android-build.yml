@@ -6,6 +6,7 @@ on:
       - feature/new-expiry-upload-table
       - feature/20-day-sync-lock
       - feature/in-app-updates
+      - feature/v2.5-login-data-archive
   workflow_dispatch:
 
 permissions:
