@@ -19,7 +19,8 @@ Android app for recording product expiry checks across Mahalaxmi Mahamart stores
 
 ### Current work handoffs
 - [V2.5 login and Data Archive](docs/V2_5_LOGIN_AND_DATA_ARCHIVE_HANDOFF.md) — confirmed requirements, security boundaries, sync rules, and implementation checklist.
-- [Fresh-project rebuild audit](docs/FRESH_PROJECT_REBUILD_AUDIT.md) — repository inventory, backend gaps, security rules, and safe fresh-project rebuild plan. This is an audit, not yet a verified one-command rebuild.
+- [Fresh-project rebuild audit](docs/FRESH_PROJECT_REBUILD_AUDIT.md) — repository inventory, backend gaps, security rules, and safe fresh-project rebuild plan.
+- [Supabase project configuration](docs/SUPABASE_PROJECT_CONFIGURATION.md) — per-project URL/key, Auth configuration boundaries, and local setup.
 - [Store name normalization](docs/STORE_NAME_NORMALIZATION_HANDOFF.md) — exact mapping source, known variants, and safe Supabase cleanup procedure.
 
 ### Data and backend
@@ -28,6 +29,7 @@ Android app for recording product expiry checks across Mahalaxmi Mahamart stores
 - [SQL reference](docs/SQL_REFERENCE.md) — SQL notes; verify against the current backend before running.
 - [Supabase schema handoff](docs/SUPABASE_SCHEMA_HANDOFF.md) — recorded Supabase schema decisions.
 - [Supabase Android setup](docs/SUPABASE_ANDROID_SETUP.md) — app configuration and setup notes.
+- [Supabase project properties template](config/supabase-project.example.properties) — placeholder URL and publishable-key properties; copy into ignored local.properties and replace locally.
 - [Expiry upload security plan](docs/EXPIRY_UPLOAD_SECURITY_PLAN.md) — security considerations for upload workflows.
 - [Product master daily sync](docs/PRODUCT_MASTER_DAILY_SYNC.md) — historical sync design; verify it against current code and decisions before relying on it.
 
