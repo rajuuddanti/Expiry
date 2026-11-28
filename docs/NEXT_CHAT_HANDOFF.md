@@ -1,3 +1,5 @@
+> **Current pointer — 2026-11-28:** This file contains historical notes that may name older branches and versions. The current implementation branch is `feature/v2.5-login-data-archive`, audited HEAD before documentation-only commits was `8aa2c7ad4a0a5e223d8fc91e8f5fed67f8608ff9`, Android source version is `2.5.2` / versionCode `8`, package is `com.mahalaxmi.expiry`. Read `docs/BRANCH_AND_UPDATER_AUDIT_2026-11-28.md` first, then `docs/V2_5_LOGIN_AND_DATA_ARCHIVE_HANDOFF.md`, `docs/APP_UPDATE_DUAL_SOURCE_ROLLOUT.md`, and `docs/EXPIRY_DEVICE_ID_AND_STORE_SWITCH_AUTH_HANDOFF.md`. Do not treat historical branch/version references below as current. No branch merge or live Supabase changes are authorized by this pointer.
+ 
 ## Copy this into a new chat
 
 Continue the Mahalaxmi Expiry Manager project in `rajuuddanti/Expiry`.
