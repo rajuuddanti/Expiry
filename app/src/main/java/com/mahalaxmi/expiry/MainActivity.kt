@@ -331,9 +331,8 @@ class MainActivity : ComponentActivity() {
             var archiveSyncBusy by remember { mutableStateOf(false) }
             var showArchiveSyncConfirm by remember { mutableStateOf(false) }
             var archiveSyncProgress by remember { mutableStateOf("") }
-            var archiveSyncMessage by remember { mutableStateOf("Archive is stored locally. Tap SYNC to recover server records.") }
-            var archiveSyncedStore by remember { mutableStateOf(prefs.getString("archive_sync_completed_store", null)) }
-            val archiveSyncCompletedForStore = store.isNotBlank() && archiveSyncedStore == store
+            var archiveSyncMessage by remember { mutableStateOf("Archive is stored locally. Download the archive once on this installation.") }
+            var archiveDownloadCompleted by remember { mutableStateOf(prefs.getBoolean("archive_download_completed", false)) }
             var archiveSearch by remember { mutableStateOf("") }
             var archiveDate by remember { mutableStateOf("") }
             var archiveCategorySelection by remember { mutableStateOf(setOf<String>()) }
@@ -573,7 +572,7 @@ class MainActivity : ComponentActivity() {
                     AlertDialog(
                         onDismissRequest = { showArchiveSyncConfirm = false },
                         title = { Text("Sync Data Archive?") },
-                        text = { Text("This will download the latest 90 days of eligible records for $store to this device. Archive sync is limited to once per store per day. Continue?") },
+                        text = { Text("This will download the latest 90 days of eligible records for $store to this device. Continue?") },
                         confirmButton = {
                             TextButton(onClick = {
                                 showArchiveSyncConfirm = false
@@ -584,14 +583,14 @@ class MainActivity : ComponentActivity() {
                                             archiveSyncProgress = "${progress.phase}: ${progress.downloaded} received • ${progress.inserted} new"
                                         }
                                         archiveSyncMessage = result.message
-                                        // Lock archive recovery on this device only after a fully successful sync.
-                                        prefs.edit().putString("archive_sync_completed_store", store).apply()
-                                        archiveSyncedStore = store
+                                        // Hide the one-time action only after a successful download.
+                                        prefs.edit().putBoolean("archive_download_completed", true).apply()
+                                        archiveDownloadCompleted = true
                                     } catch (error: Exception) {
                                         archiveSyncMessage = "Sync incomplete. ${error.message ?: "Please try again."}"
                                     } finally { archiveSyncBusy = false; archiveSyncProgress = "" }
                                 }
-                            }) { Text("SYNC NOW", color = MahalaxmiRed) }
+                            }) { Text("DOWNLOAD NOW", color = MahalaxmiRed) }
                         },
                         dismissButton = { TextButton(onClick = { showArchiveSyncConfirm = false }) { Text("CANCEL") } }
                     )
@@ -1190,7 +1189,7 @@ class MainActivity : ComponentActivity() {
                                         enabled = !isUploading,
                                         modifier = Modifier.fillMaxWidth(),
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF455A64))
-                                    ) { Text(if (isUploading) "UPLOADING…" else "UPLOAD TO SUPABASE") }
+                                    ) { Text(if (isUploading) "UPLOADING…" else "RECOVER MISSED DATA") }
                                     Text(uploadMessage, color = if (uploadMessage.startsWith("Upload failed")) MahalaxmiRed else Color.Gray, fontSize = 12.sp)
                                     if (currentSessionEntries.isEmpty()) {
                                         Text("No entries for the current day yet.")
@@ -1200,6 +1199,19 @@ class MainActivity : ComponentActivity() {
                                                 Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                                                     Column(Modifier.padding(12.dp)) {
                                                         Text(item.productName, fontWeight = FontWeight.Bold)
+                                                        val uploadStatus = when {
+                                                            item.syncStatus == "SYNCED" -> "SYNCED"
+                                                            !item.lastSyncError.isNullOrBlank() -> "FAILED"
+                                                            else -> "PENDING"
+                                                        }
+                                                        val statusColor = when (uploadStatus) {
+                                                            "SYNCED" -> Color(0xFF2E7D32)
+                                                            "FAILED" -> MahalaxmiRed
+                                                            else -> Color(0xFFEF6C00)
+                                                        }
+                                                        Text("UPLOAD: $uploadStatus", color = statusColor, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                                        item.lastSyncAttemptAt?.let { Text("Last attempt: $it", color = Color.Gray, fontSize = 11.sp) }
+                                                        item.lastSyncError?.takeIf { it.isNotBlank() }?.let { Text("Reason: $it", color = MahalaxmiRed, fontSize = 11.sp) }
                                                         if (item.expiry == "NO EXPIRY") {
                                                             Text("Status: NO EXPIRY FOUND", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
                                                             Text("Checked category: ${item.noExpiryCategory}")
@@ -1240,13 +1252,11 @@ class MainActivity : ComponentActivity() {
                                         TextButton(onClick = { screen = AppScreen.History }) { Text("BACK") }
                                     }
                                     Text("${archiveEntries.size} records stored on this device • newest first", color = Color.Gray, fontSize = 12.sp)
-                                    if (!archiveSyncCompletedForStore) {
+                                    if (!archiveDownloadCompleted) {
                                         Button(onClick = {
                                             if (!storeAccessClient.hasSession()) showLoginDialog = true
                                             else if (!archiveSyncBusy) showArchiveSyncConfirm = true
-                                        }, enabled = !archiveSyncBusy, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text(if (archiveSyncBusy) "SYNCING…" else "SYNC ARCHIVE") }
-                                    } else {
-                                        Text("ARCHIVE SYNC COMPLETED FOR THIS STORE", color = Color(0xFF2E7D32), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        }, enabled = !archiveSyncBusy, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MahalaxmiRed)) { Text(if (archiveSyncBusy) "DOWNLOADING…" else "DOWNLOAD ARCHIVE") }
                                     }
                                     if (archiveSyncBusy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = MahalaxmiRed)
                                     Text(if (archiveSyncBusy) archiveSyncProgress else archiveSyncMessage, fontSize = 12.sp, color = Color.Gray)
