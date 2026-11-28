@@ -98,6 +98,16 @@ These are conceptual responsibilities, not a mandate to create five separate tab
 - No service-role key or PIN secret in Android.
 - Do not modify live Supabase schema/functions without explicit user approval.
 
-## Open policy decision
+## Confirmed return-to-store policy — 2026-11-28
 
-If a device previously assigned to Dharmaram switches to Mallial and later switches back to Dharmaram with the same Android ID, should the system reactivate its original `DHARMARAM-01` assignment or allocate `DHARMARAM-02`? This must be decided before implementation because it affects uniqueness, audit history, and counter behavior.
+The user confirmed **Option A**: if a device switches from Dharmaram to Mallial and later returns to Dharmaram with the same Android ID, reactivate and reuse its original `DHARMARAM-01` assignment. Do not allocate `DHARMARAM-02` for that same Android-ID/store pair.
+
+Rationale: only a small number of authorized people (approximately 2–3, including the user) are expected to switch stores for testing. Reusing the original assignment keeps store-wise device records stable and avoids unnecessary ID consumption.
+
+Implementation requirements:
+- Enforce uniqueness for the Android-ID-hash + store pair.
+- On an authorized switch, look up an existing assignment for the destination store first.
+- If one exists, reactivate/reuse that Device ID and update the current assignment state.
+- If none exists, allocate the next sequential Device ID for that store.
+- Preserve the prior store's assignment and installation record; do not delete or overwrite it.
+- The switch still requires the separate server-verified Store Change Authorization PIN whenever the Android ID is currently associated with a different store.
