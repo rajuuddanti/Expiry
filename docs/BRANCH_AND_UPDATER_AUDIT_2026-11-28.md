@@ -177,3 +177,8 @@ The 1.2-second launch check, manual Settings check, progress UI, cache destinati
 ### Verification not performed
 
 No live GitHub release/asset/manifest request, build, APK signature comparison, install, or physical-device update test was performed as part of this branch-source comparison.
+
+
+### Small UI text mismatch found
+
+The manual update-check button in the 2.5 branch still sets its progress message to `Checking GitHub for the latest release…`, even though `AppUpdateManager` now reads the static `Mahalaxmi-App-Updates` manifest URL directly. This is only a status-text mismatch; it does not change the update request. It should be corrected in a future scoped UI change.
